@@ -1,0 +1,9 @@
+\section{System Calls}
+
+\verb|syscall-vdso.wrappers.inc|里定义了\verb|zx_*|到\verb|_zx_*|的
+weak alias.
+
+\verb|syscall-entry.h|里定义了\verb|SYSCALL_*|入口符号。
+
+\verb|syscalls-arm64.S|里定义了真正的入口。
+

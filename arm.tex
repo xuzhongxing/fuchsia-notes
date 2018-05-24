@@ -1,0 +1,55 @@
+\section{ARM架构}
+
+\verb!sp!指的是el0的stack pointer。其他的stack pointer需要指明el级别。在Zircon里，
+el1使用的是\verb!sp_el1!，但是在\verb!arm64_elX_to_el1!里，\verb!sp_el1!
+被设置为与\verb!sp!相同的值。
+
+\verb!pc!寄存器是专用寄存器，不能再被显式指代。
+
+frame pointer不是专用寄存器，是X29，但是A64 Procedure Call Standard把X29定义为专门的
+frame pointer. X30是link register.
+
+异常级别定义程序运行的特权级别。
+
+安全状态下处理器能访问安全内存地址空间。
+
+\verb!scr_el3!寄存器定义EL0和EL1的安全状态。
+
+ELR存放异常返回地址。PLR存放函数调用返回地址。
+
+处理异常之前，处理器状态(PSTATE)会保存在SPSR中。
+
+\subsection{关于MMU}
+
+EL1有2个页表基地址指针寄存器：\verb!ttbr0_el1!和\verb!ttbr1_el1!。使用
+哪一个由虚拟地址的最高几位决定，如果都是0则使用\verb!ttbr0_el1!，如果都是1则
+使用\verb!ttbr1_el1!。具体检查多少位由\verb!tcr_el1!的t0sz和t1sz决定。
+在Zircon里t0sz=22, t1sz=16.
+
+IPS设置为1TB.
+
+\verb!ESR_ELn!寄存器存放了当前的异常具体是什么异常的信息。
+
+\subsection{Exceptions}
+\begin{verbatim}
+sync_exception #(ARM64_EXCEPTION_FLAG_LOWER_EL), 1
+
+.macro sync_exception, exception_flags, from_lower_el_64=0
+    start_isr_func
+    regsave_long
+    mrs x9, esr_el1
+.if \from_lower_el_64
+    // If this is a syscall, x0-x7 contain args and x16 contains syscall num.
+    // x10 contains elr_el1.
+    lsr x11, x9, #26              // shift esr right 26 bits to get ec
+    cmp x11, #0x15                // check for 64-bit syscall
+    beq arm64_syscall_dispatcher  // and jump to syscall handler
+.endif
+    // Prepare the default sync_exception args
+    mov x0, sp
+    mov x1, ARM64_EXCEPTION_FLAG_LOWER_EL
+    mov w2, w9
+    bl  arm64_sync_exception
+    b  arm64_exc_shared_restore_long
+.endm
+\end{verbatim}

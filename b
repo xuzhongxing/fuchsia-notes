@@ -1,0 +1,1 @@
+xelatex zircon-notes.tex

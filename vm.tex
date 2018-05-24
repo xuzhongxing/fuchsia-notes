@@ -1,0 +1,14 @@
+\section{虚拟内存管理}
+zircon的每个进程的页表对应的page是初始化process handle时创建的。页表地址
+会记录在aspace里面。
+
+当切换进程后，如果通过channel传递过来的vmar里面已经映射的vmo的地址没有对应的物理页面，
+会触发Page fault。pagefault会优先从vmo里拿它已有的页面，然后到页表里建立映射关系。
+
+当load devmgr的时候，如果有动态链接器，则entry会设置为interp的入口。
+
+gold对于aarch64默认entry symbol是\verb|_start|
+
+vmobject可以从一个地址和size创建出来。也可以clone出来。
+
+ld.so会把application的phdr全部映射一遍，其中有一个segment包含ehdr, 从中得到entry addr (需要用映射到的地址进行修正)

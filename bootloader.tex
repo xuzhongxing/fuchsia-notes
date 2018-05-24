@@ -1,0 +1,338 @@
+\section{Bootloader}
+
+让make输出详细的编译过程。
+\begin{verbatim}
+make V=1 arm64 > make.log
+\end{verbatim}
+
+在qemu里运行Zircon的命令为：
+\begin{verbatim}
+qemu-system-aarch64 -m 2048 -nographic -net none -smp 4 \
+    -kernel /Users/xzx/zircon/build-arm64/qemu-zircon.bin \
+    -machine virtualization=true -cpu cortex-a53 \
+    -machine virt,gic_version=3 \
+    -initrd /Users/xzx/zircon/build-arm64/bootdata.bin \
+    -append 'TERM=xterm-256color \
+    kernel.entropy-mixin=a7324cb430cbac8... \
+    kernel.halt-on-panic=true '
+\end{verbatim}
+
+\begin{verbatim}
+./build-arm64/tools/mkbootfs --target=boot -c -o ./build-arm64/bootdata.bin 
+  ./build-arm64/bootfs.manifest 
+\end{verbatim}
+
+可以看出内核文件是qemu-zircon.bin。我们在make.log里找一下这个文件是怎么来的。
+\begin{verbatim}
+./build-arm64/tools/mkbootfs -o build-arm64/qemu-zircon.bin \
+    ./build-arm64/zircon.bin --header ./build-arm64/qemu-boot-shim.bin \
+    --header-align 65536
+\end{verbatim}
+
+mkbootfs会把qemu-zircon.bin所代表的内核映像写在offset为65536的地方。在之前写入的是
+boot-shim的内容。qemu-zircon.bin的布局实际上是由image.S决定的。
+
+\subsection{mkbootfs一些细节}
+\begin{enumerate}
+  \item \verb!system = true, ramdisk = false, header\_align = 65536!
+  \item 调用\verb!import_file(path, system, ramdisk)!
+    \begin{enumerate}
+      \item 接着调用\verb!import_file_as(fn, ITEM_BOOTDATA, hdr.length, &hdr)!
+      \item 调用\verb!import_directory_entry("bootdata", fn, &s)!，构造一个fsentry, length是输入文件的长度。
+      \item 构造\verb!first_item, type=ITEM_BOOTDATA, first, last都指向fsentry!
+    \end{enumerate}
+  \item 进入\verb!write_bootdata(output_file, first_item, header_path, header_align)!
+    \begin{enumerate}
+      \item 首先把header原封不动的写入目标文件
+      \item 然后seek到header align的位置
+      \item 然后再留出一个\verb!bootdata_t!的位置
+      \item copybootdatafile(fd, item->first->srcpath, item->first->length)
+        \begin{enumerate}
+          \item 首先把\verb!BOOTDATA_CONTAINER!读到hdr里
+          \item 然后把剩下的内核映像原封不动的写入目标文件
+       \end{enumerate}
+      \item 把\verb!BOOTDATA_CONTAINER!再写入之前留出来的\verb!bootdata_t!的位置
+    \end{enumerate}
+\end{enumerate}
+
+
+qemu-boot-shim.bin的来历：
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-objcopy -O binary \
+    build-arm64/boot-shim/qemu/boot-shim.elf build-arm64/qemu-boot-shim.bin
+\end{verbatim}
+
+boot-shim.elf的来历：
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld -nostdlib --build-id -z noexecstack \
+    -z max-page-size=4096 --gc-sections  --emit-relocs --build-id=none \
+    ./build-arm64/boot-shim/qemu/boot-shim.S.o \
+    ./build-arm64/boot-shim/qemu/boot-shim.c.o \
+    ./build-arm64/boot-shim/qemu/debug.c.o \
+    ./build-arm64/boot-shim/qemu/devicetree.c.o \
+    ./build-arm64/boot-shim/qemu/util.c.o  \
+    -T kernel/target/arm64/boot-shim/boot-shim.ld \
+    -o build-arm64/boot-shim/qemu/boot-shim.elf
+\end{verbatim}
+
+boot-shim.S中\_start的地址是0。所以qemu-zircon.bin加载之后，自然就从boot-shim.S的\_start
+开始执行。那么，内核的\_start又是如何找到的呢？注意到有这样一段代码：
+
+\begin{verbatim}
+    // x0: pointer to device tree
+    // x1: pointer to kernel bootdata container
+    bl      boot_shim
+
+    // kernel entry point is returned in x0
+    mov     tmp, x0
+
+    // pass bootdata to kernel in x0
+    adr     x0, bootdata_return
+    ldr     x0, [x0]
+
+    br      tmp
+\end{verbatim}
+
+也就是说，boot\_shim函数应该会找到kernel的entry point。我们去看一下。
+\begin{verbatim}
+return kernel_base + kernel->data_kernel.entry64;
+\end{verbatim}
+这里kernel\_base就是KERNEL\_ALIGN=65536。
+boot\_shim函数从bootdata中获得入口地址。bootdata是mkbootfs这个工具填写
+到启动映像里的。在image.S的头上就是bootdata。
+
+
+\begin{verbatim}
+// BOOTDATA_KERNEL payload (bootdata_kernel_t)
+DATA(_bootdata_kernel_payload)
+    // The boot-shim code expects this to be an offset from the beginning
+    // of the load image, whatever the kernel's virtual address.
+    .quad IMAGE_ELF_ENTRY - _bootdata_file_header
+    .quad 0
+END_DATA(_bootdata_kernel_payload)
+\end{verbatim}
+
+从而，上面的br tmp能够正确跳转到内核入口。
+
+\verb!boot-shim.S!文件里设置了stack pointer，指向了boot-shim之后，kernel之前的
+一块大小为4k的内存区域。
+
+zircon.bin的来历：
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-objcopy \
+    -O binary build-arm64/zircon-image.elf build-arm64/zircon.bin
+\end{verbatim}
+
+zircon-image.elf的来历：
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld -nostdlib --build-id -z noexecstack \
+    -z max-page-size=4096 --gc-sections --build-id=none \
+	-o build-arm64/zircon-image.elf -T kernel/image.ld \
+    --just-symbols ./build-arm64/zircon.elf \
+	./build-arm64/kernel-vars.ld ./build-arm64/zircon.image.o
+\end{verbatim}
+
+链接脚本image.ld内容：
+\begin{verbatim}
+ENTRY(IMAGE_ELF_ENTRY)
+
+SECTIONS {
+    . = IMAGE_LOAD_START;
+
+    .load_image : {
+        KEEP(*(.text))
+    } :load_image
+
+    /*
+     * When a boot loader is actually using the ELF headers, it needs to
+     * know how much memory to reserve after the load image (p_filesz is
+     * the load image, and p_memsz > p_filesz to indicate the extra space
+     * to reserve).  This ensures that the segment has the right p_memsz.
+     */
+    .bss : {
+        . += ABSOLUTE(IMAGE_MEMORY_END) - ABSOLUTE(.);
+	ASSERT(ABSOLUTE(.) == ABSOLUTE(IMAGE_MEMORY_END), "image layout bad");
+    }
+}
+
+PHDRS {
+    load_image PT_LOAD FLAGS(7); /* PF_R|PF_W|PF_X */
+}
+\end{verbatim}
+
+ENTRY指定了程序入口的虚拟地址，它对应于ELF Header中的entry项。
+IMAGE\_ELF\_ENTRY的定义在kernel/arch/arm64/start.S中。
+\begin{verbatim}
+// This symbol is used by image.S.
+.global IMAGE_ELF_ENTRY
+IMAGE_ELF_ENTRY = _start
+\end{verbatim}
+
+实际上在最终生成的内核映像中ELF结构是不存在的，所以上面的ENTRY信息
+并没有实际的用处。
+
+IMAGE\_LOAD\_START是在kernel.ld中定义的符号，它的值是-4GB
+\begin{verbatim}
+. = KERNEL_BASE;
+PROVIDE_HIDDEN(__code_start = .);
+
+...
+
+IMAGE_LOAD_START = __code_start;
+\end{verbatim}
+
+KERNEL\_BASE定义在kernel/arch/arm64/rules.mk
+
+\begin{verbatim}
+KERNEL_BASE := 0xffffffff00000000
+\end{verbatim}
+
+整个内核映像的起始虚拟地址是-4GB，但是入口并不是这个地址，而是start.S文件中
+的\_start。我们在上面已经看到boot-shim是如何找到这个入口地址的。
+
+这里zircon.elf只是用来获得symbol的地址，并不添加到zircon-image.elf里。真正的
+内核映像文件是zircon.image.o
+
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-gcc   \
+	-O2 -g -fdebug-prefix-map=/Users/xzx/zircon=. -finline \
+    -include ./build-arm64/config-global.h -Wall -Wextra -Wno-multichar \
+    -Werror -Wno-error=deprecated-declarations -Wno-unused-parameter \
+    -Wno-unused-function -Werror=unused-label -Werror=return-type -fno-common \
+    -ffunction-sections -fdata-sections -Wno-nonnull-compare -ffreestanding \
+    -include ./build-arm64/config-kernel.h -Wformat=2 -Wvla -Wformat-signedness \
+    -fno-exceptions -fno-unwind-tables -fno-omit-frame-pointer -mgeneral-regs-only \
+    -fPIE -include kernel/include/hidden.h   -mcpu=cortex-a53 -ffixed-x18 \
+    -Isystem/public -Isystem/private -I./build-arm64/gen/global/include \
+    -I./build-arm64 -Ikernel/include -Ikernel/platform/generic-arm/include \
+    -Ikernel/arch/arm64/include -Ikernel/top/include \
+    -Ikernel/dev/hdcp/amlogic_s912/include \
+    -Ikernel/dev/interrupt/arm_gic/common/include \
+    -Ikernel/dev/interrupt/arm_gic/v2/include \
+    -Ikernel/dev/interrupt/arm_gic/v2/include \
+    -Ikernel/dev/interrupt/arm_gic/v3/include \
+    -Ikernel/dev/iommu/dummy/include -Ikernel/dev/pcie/include \
+    -Ikernel/dev/pdev/include -Ikernel/dev/pdev/power/include \
+    -Ikernel/dev/power/hisi/include -Ikernel/dev/psci/include \
+    -Ikernel/dev/timer/arm_generic/include -Ikernel/dev/uart/amlogic_s905/include \
+    -Ikernel/dev/uart/nxp-imx/include -Ikernel/dev/uart/pl011/include \
+    -Ikernel/kernel/include -Isystem/ulib/bitmap/include \
+    -Ikernel/lib/bitmap/include -Ikernel/lib/cbuf/include \
+    -Ikernel/lib/debugcommands/include -Ikernel/lib/debuglog/include \
+    -Ikernel/lib/ktrace/include -Ikernel/lib/memory_limit/include \
+    -Ikernel/lib/mtrace/include -Ikernel/lib/userboot/include \
+    -Ikernel/lib/version/include -Ikernel/object/include \
+    -Ikernel/platform/include -Ikernel/syscalls/include \
+    -Ikernel/target/include -Ikernel/tests/include \
+    -Ikernel/dev/interrupt/include -Ikernel/dev/pdev/interrupt/include \
+    -Ikernel/dev/pdev/uart/include -Ikernel/dev/udisplay/include \
+    -Ikernel/lib/console/include -Ikernel/lib/counters/include \
+    -Ikernel/lib/crypto/include -Ikernel/lib/debug/include \
+    -Isystem/ulib/explicit-memory/include -Ikernel/lib/explicit-memory/include \
+    -Ikernel/lib/fbl/include -Isystem/ulib/fbl/include \
+    -Ikernel/lib/fbl/include -Ikernel/lib/fixed_point/include \
+    -Ikernel/lib/header_tests/include -Ikernel/lib/heap/include \
+    -Ikernel/lib/heap/include -Ikernel/lib/hypervisor/include \
+    -Ikernel/lib/libc/include -Ikernel/lib/oom/include -Ikernel/lib/pci/include \
+    -Ikernel/lib/pci/include -Ikernel/lib/pow2_range_allocator/include \
+    -Isystem/ulib/region-alloc/include -Ikernel/lib/region-alloc/include \
+    -Ikernel/lib/unittest/include -Ikernel/lib/user_copy/include \
+    -Ikernel/lib/vdso/include -Isystem/ulib/zxcpp/include \
+    -Ikernel/lib/zxcpp/include -Ikernel/vm/include \
+    -Ikernel/arch/arm64/hypervisor/include -Ikernel/dev/hw_rng/include \
+    -Ikernel/lib/gfx/include -Ikernel/lib/gfxconsole/include \
+    -Ikernel/lib/heap/cmpctmalloc/include -Ikernel/lib/io/include \
+    -Isystem/ulib/pretty/include -Ikernel/lib/pretty/include \
+    -Ithird_party/ulib/cryptolib/include -Ithird_party/lib/cryptolib/include \
+    -Ithird_party/lib/jitterentropy/include -Ithird_party/lib/jitterentropy/include\
+    -Ithird_party/ulib/qrcodegen/include -Ithird_party/lib/qrcodegen/include \
+    -Ithird_party/ulib/uboringssl/include -Ithird_party/lib/uboringssl/include \
+    -I./build-arm64 \
+	-c kernel/arch/arm64/image.S -MD -MP -MT build-arm64/zircon.image.o \
+    -MF build-arm64/zircon.image.d -o build-arm64/zircon.image.o
+\end{verbatim}
+
+image.S文件里嵌入了真正的内核zircon.elf.bin
+
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-objcopy \
+-O binary build-arm64/zircon.elf build-arm64/zircon.elf.bin
+\end{verbatim}
+
+真正的kernel是zircon.elf
+\begin{verbatim}
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld -nostdlib --build-id -z noexecstack \
+    -z max-page-size=4096 --gc-sections  --emit-relocs -T kernel/kernel.ld \
+    build-arm64/kernel-vars.ld \
+    build-arm64/kernel/platform/generic-arm/generic-arm.mod.o \
+    build-arm64/kernel/arch/arm64/arm64.mod.o build-arm64/kernel/top/top.mod.o \
+    build-arm64/kernel/dev/hdcp/amlogic_s912/amlogic_s912.mod.o \
+    build-arm64/kernel/dev/interrupt/arm_gic/common/common.mod.o \
+    build-arm64/kernel/dev/interrupt/arm_gic/v2/v2.mod.o \
+    build-arm64/kernel/dev/interrupt/arm_gic/v3/v3.mod.o \
+    build-arm64/kernel/dev/iommu/dummy/dummy.mod.o \
+    build-arm64/kernel/dev/pcie/pcie.mod.o \
+    build-arm64/kernel/dev/pdev/pdev.mod.o \
+    build-arm64/kernel/dev/pdev/power/power.mod.o \
+    build-arm64/kernel/dev/power/hisi/hisi.mod.o \
+    build-arm64/kernel/dev/psci/psci.mod.o \
+    build-arm64/kernel/dev/timer/arm_generic/arm_generic.mod.o \
+    build-arm64/kernel/dev/uart/amlogic_s905/amlogic_s905.mod.o \
+    build-arm64/kernel/dev/uart/nxp-imx/nxp-imx.mod.o \
+    build-arm64/kernel/dev/uart/pl011/pl011.mod.o \
+    build-arm64/kernel/kernel/kernel.mod.o \
+    build-arm64/kernel/lib/bitmap/bitmap.mod.o \
+    build-arm64/kernel/lib/cbuf/cbuf.mod.o \
+    build-arm64/kernel/lib/debugcommands/debugcommands.mod.o \
+    build-arm64/kernel/lib/debuglog/debuglog.mod.o \
+    build-arm64/kernel/lib/ktrace/ktrace.mod.o \
+    build-arm64/kernel/lib/memory_limit/memory_limit.mod.o \
+    build-arm64/kernel/lib/mtrace/mtrace.mod.o \
+    build-arm64/kernel/lib/userboot/userboot.mod.o \
+    build-arm64/kernel/lib/version/version.mod.o \
+    build-arm64/kernel/object/object.mod.o \
+    build-arm64/kernel/platform/platform.mod.o \
+    build-arm64/kernel/syscalls/syscalls.mod.o \
+    build-arm64/kernel/target/target.mod.o \
+    build-arm64/kernel/tests/tests.mod.o \
+    build-arm64/kernel/dev/interrupt/interrupt.mod.o \
+    build-arm64/kernel/dev/pdev/interrupt/interrupt.mod.o \
+    build-arm64/kernel/dev/pdev/uart/uart.mod.o \
+    build-arm64/kernel/dev/udisplay/udisplay.mod.o \
+    build-arm64/kernel/lib/console/console.mod.o \
+    build-arm64/kernel/lib/counters/counters.mod.o \
+    build-arm64/kernel/lib/crypto/crypto.mod.o \
+    build-arm64/kernel/lib/debug/debug.mod.o \
+    build-arm64/kernel/lib/explicit-memory/explicit-memory.mod.o \
+    build-arm64/kernel/lib/fbl/fbl.mod.o \
+    build-arm64/kernel/lib/fixed_point/fixed_point.mod.o \
+    build-arm64/kernel/lib/header_tests/header_tests.mod.o \
+    build-arm64/kernel/lib/heap/heap.mod.o \
+    build-arm64/kernel/lib/hypervisor/hypervisor.mod.o \
+    build-arm64/kernel/lib/libc/libc.mod.o \
+    build-arm64/kernel/lib/oom/oom.mod.o \
+    build-arm64/kernel/lib/pci/pci.mod.o \
+    build-arm64/kernel/lib/pow2_range_allocator/pow2_range_allocator.mod.o \
+    build-arm64/kernel/lib/region-alloc/region-alloc.mod.o \
+    build-arm64/kernel/lib/unittest/unittest.mod.o \
+    build-arm64/kernel/lib/user_copy/user_copy.mod.o \
+    build-arm64/kernel/lib/vdso/vdso.mod.o \
+    build-arm64/kernel/lib/zxcpp/zxcpp.mod.o \
+    build-arm64/kernel/vm/vm.mod.o \
+    build-arm64/kernel/arch/arm64/hypervisor/hypervisor.mod.o \
+    build-arm64/kernel/dev/hw_rng/hw_rng.mod.o \
+    build-arm64/kernel/lib/gfx/gfx.mod.o \
+    build-arm64/kernel/lib/gfxconsole/gfxconsole.mod.o \
+    build-arm64/kernel/lib/heap/cmpctmalloc/cmpctmalloc.mod.o \
+    build-arm64/kernel/lib/io/io.mod.o \
+    build-arm64/kernel/lib/pretty/pretty.mod.o \
+    build-arm64/third_party/lib/cryptolib/cryptolib.mod.o \
+    build-arm64/third_party/lib/jitterentropy/jitterentropy.mod.o \
+    build-arm64/third_party/lib/qrcodegen/qrcodegen.mod.o \
+    build-arm64/third_party/lib/uboringssl/uboringssl.mod.o \
+    -o build-arm64/zircon.elf
+\end{verbatim}
+
+kernel在链接的时候，以-4G为基地址。也就是说，内核里所有的东西
+的虚拟地址都在-4G地址之上。
+

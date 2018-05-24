@@ -1,0 +1,19 @@
+\section{线程}
+
+创建bootstrap2线程时，\verb|thread_t| 是在malloc里创建的。stack也是在malloc.
+如果是用户进程通过系统调用创建线程，则stack是通过kernel aspece分配出来的vm object.
+user sp是通过vm object mapping得到的。
+
+放到stack frame里的入口是\verb|initial_thread_func|。这个函数会调用\verb|thread_t|的entry.
+\verb|thread_t|的entry是ThreadDispatcher::StartRoutine. StartRoutine里会调用
+\verb|user_entry_|，这个是在ThreadDispatcher::Start()里设置的。
+
+thread的启动：ThreadDispatcher::Start()里设置好\verb|user_entry_|，然后触发线程调度，
+切换到线程的stack上，然后进入stack frame里指定的入口\verb|initial_thread_func|.
+
+thread的退出：在\verb|thread_create_etc()|里，线程入口被设置为\verb|initial_thread_func|。
+在这个函数里，如果是用户线程，则不会回来了。用户线程自己调用\verb|process_exit|退出。
+如果是kernel线程，会回到这里调用\verb|thread_exit()|。在这个函数里，线程把自己从调度队列里拿下来，然后
+触发调度函数，进入别的线程。
+
+中断：中断会保存\verb|spsr_el1|，然后切换到\verb|sp_el1|，然后进入中断向量

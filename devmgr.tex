@@ -1,0 +1,47 @@
+\section{设备模型和驱动}
+有一个中心服务devmgr coordinator. 它会扫描驱动，为每个驱动launch一个devhost进程。launch完了之后会发送
+create device, bind driver这2个rpc给devhost. devhost会处理这2个rpc. 对于root device，不会处理，
+因为libname=""
+
+文档推荐在bind driver里调用add device。驱动本身是在devhost里运行的。devhost会rpc调用dev coordinator
+的add device方法。这个方法主要是创建dc里对设备的代表，发布到devfs里。
+
+
+在启动进程的时候，传递的第一个参数是一个channel handle.
+libc start main在拿到这个channel handle之后，读取它。channel里的message是MessagePack
+里面的data是\verb|zx_proc_args_t|。这个东西是由另一头用\verb|channel_write()|写进来的。
+userboot里面是手工组装这个消息。如果是普通应用层应该会把这个封装掉。
+
+\verb|zx_proc_args_t|是传递进程参数的固定的消息格式。作为data写入MessagePack.
+
+
+到达devmgr:main()
+\begin{verbatim}
+devfs_init():
+    iostate_create(&root_devnode)
+devmgr_vfs_init():
+    fshost_start():
+              loader_service:
+svc async的port等待的是另外一头的handle
+async里的线程等待的是port
+dl_set_loader_service()   把新创建的loader service设置为缺省的，关闭老的
+
+devfs_root_clone(): 创建一个channel, 返回一头，另一头封装在一个消息里发送给devfs_root
+                                devfs_root会在coordinator()中被轮询
+              问题在于devfs_root的另一头只是和dc_port   wait了一次。在处理完成之后
+              会立刻又wait一次！
+               另一头会传递给devfs_open()
+
+
+fs_clone("svc"): 
+        fdio_open_at(fs=appmgr_req_cli, path, flag, h1)
+        this function creates a channel and send one handle to appmgr, and returns the other 
+\end{verbatim}
+
+设置了一堆handle之后，启动fshost      
+use launchpad, to be looked ...
+    
+发送了几个设备的channel handle给\verb|fs_root|
+
+
+

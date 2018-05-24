@@ -1,0 +1,130 @@
+\section{Development}
+
+zedboot means: after booting the target, the target will through network get the real 
+OS files on to the internal storage.
+
+问题1: 没有特殊的bootloader能否启动vim2
+
+问题2：zbi是否会根据-o 里面的board name来选择输入文件。不会。vim2不需要特殊的bootimage.
+
+问题3: fastboot flash 后面的参数boot part有哪几种。是什么意思。emmc如何分区的。在安卓里，
+  fastboot flash recovery xxx.img
+在flash-hikey里，有很多种。
+
+
+fastboot是通过usb-c线flash过去的。
+
+串口应该只是输出调试信息
+
+zedboot是通过网络传输文件的。
+
+板子上的emmc有一些分区。这些分区也可以用sd card启动之后，用uboot重新分。
+
+fastboot是一种协议，可以进入fastboot模式，之后可以flash各种分区。包括bootloader和boot. 
+分区用名字来指定。
+
+fastboot模式是bootloader的一种模式，有多种方式可以进入。要素就是要在bootloader（比如uboot)的启动
+过程中，给它一个信号，比如按住某个键，短接某个跳线，或者是从串口给它一个信号，它就会进入fastboot模式。
+如果没有信号，它就正常启动，加载内核。
+
+先更新bootloader，再更新boot.img. 然后启动到zedboot模式下面，主机要启动好fx boot服务器。
+
+启动到zedboot模式之后，会自动开始pave. 之后完整的系统就安装到emmc上面了。
+
+\section{板子}
+
+first, the SoC loads the BL1 (first lever bootloader) from maskrom, 
+then depending on state described by the flowchart in the S912 datasheet, 
+BL1 loads and authenticates BL2 from external storage.
+
+BL2 is mainly in charge of setting up DDR and clocks, then it loads and 
+authenticates BL30 from the same storage as itself.
+
+BL30 is in charge of various things like setting up (undisclosed) security 
+stuff and loading the firmware of the cortex-M3 core that handles power-management and CPU cores DVFS (also known as SCPI in ARM terminology).
+
+BL2 also loads/authenticates BL31, also called the secure monitor, running 
+in trustzone and in charge of providing secure services to the main OS, and 
+finally BL33, which is u-boot.
+
+通过串口可以看到启动信息：
+
+
+bl30, bl31 and bl33 are stored in a FIP image on eMMC.
+you can see that along with the flash offsets in the serial 
+console traces output by BL2 just before u-boot starts.
+
+eg. on the kvim2 pro:
+\begin{verbatim}
+Load fip header from eMMC, src: 0x0000c200, des: 0x01400000, size: 0x00004000
+New fip structure!
+Load bl30 from eMMC, src: 0x00010200, des: 0x01100000, size: 0x0000d600
+Load bl31 from eMMC, src: 0x00020200, des: 0x05100000, size: 0x0002c600
+Load bl33 from eMMC, src: 0x00050200, des: 0x01000000, size: 0x00055000
+\end{verbatim}
+the ‘src’ values are offset in eMMC (probably bytes, because all
+values are aligned to 0x200, which is standard sector size), and
+‘des’ are RAM addresses.
+
+文档地址：
+\verb|https://github.com/ARM-software/arm-trusted-firmware/tree/master/docs|
+
+通过adb shell或者u-boot的命令行可以看到emmc的分区。
+
+\begin{verbatim}
+dmesg | grep mmcblk0p
+
+[ 2.849364@2] [mmcblk0p01] bootloader offset 0x000000000000, size 0x000000400000
+[ 2.849511@1] [mmcblk0p02] reserved offset 0x000002400000, size 0x000004000000
+[ 2.849645@2] [mmcblk0p03] cache offset 0x000006c00000, size 0x000020000000
+[ 2.849773@1] [mmcblk0p04] env offset 0x000027400000, size 0x000000800000
+[ 2.849897@2] [mmcblk0p05] logo offset 0x000028400000, size 0x000002000000
+[ 2.850021@1] [mmcblk0p06] recovery offset 0x00002ac00000, size 0x000002000000
+[ 2.850156@2] [mmcblk0p07] rsv offset 0x00002d400000, size 0x000000800000
+[ 2.850290@1] [mmcblk0p08] tee offset 0x00002e400000, size 0x000000800000
+[ 2.850422@2] [mmcblk0p09] crypt offset 0x00002f400000, size 0x000002000000
+[ 2.850559@1] [mmcblk0p10] misc offset 0x000031c00000, size 0x000002000000
+[ 2.850691@2] [mmcblk0p11] boot offset 0x000034400000, size 0x000002000000
+[ 2.850830@1] [mmcblk0p12] system offset 0x000036c00000, size 0x000080000000
+[ 2.850959@2] [mmcblk0p13] data offset 0x0000b7400000, size 0x000dd8400000
+
+kvim2:/dev/block # hexdump -n 520 /dev/block/mmcblk0boot0
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000200 9fa1 4f92 313d 34c4
+0000208
+kvim2:/dev/block # hexdump -n 520 /dev/block/mmcblk0boot1
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000200 9fa1 4f92 313d 34c4
+0000208
+kvim2:/dev/block # hexdump -n 520 /dev/block/mmcblk0
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000200 9fa1 4f92 313d 34c4
+0000208
+kvim2:/dev/block # hexdump -n 520 /dev/block/boot
+boot bootloader
+kvim2:/dev/block # hexdump -n 520 /dev/block/bootloader
+0000000 0000 0000 0000 0000 0000 0000 0000 0000
+*
+0000200 9fa1 4f92 313d 34c4
+0000208
+
+you can also look around in /sys/class/mmc_host/emmc/emmc:0001/block/mmcblk0/
+\end{verbatim}
+
+this source code might also provide you some hints: 
+\begin{verbatim}
+https://github.com/khadas/linux/blob/khadas-vim-4.9.y/drivers/amlogic/mmc/emmc_partitions.c
+https://github.com/khadas/u-boot/blob/ubuntu/common/store_interface.c#L1174
+
+I don’t know if the FIP format has a human-readable specification, however you 
+can take a look at fiptool’s source to see how it’s working: 
+https://github.com/ARM-software/arm-trusted-firmware/tree/master/tools/fiptool 
+https://github.com/ARM-software/arm-trusted-firmware/blob/master/include/tools_share/firmware_image_package.h
+
+note also that some of the items in the amlogic boot images may be encrypted, 
+so you may not read them directly (check the calls to aml_encrypt_$(SOC) in 
+u-boot’s Makefile for that)
+\end{verbatim}

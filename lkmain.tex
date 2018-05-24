@@ -1,0 +1,136 @@
+\section{lk\_main}
+
+\subsection{thread\_init\_early}
+
+\verb|thread_construct_first(t, "bootstrap")|, 在主cpu上创建一个反映
+当前运行状态的\verb|thread_t|.
+
+\begin{enumerate}
+    \item 拿到的cpu num是0
+    \item \verb|thread_t|清零
+    \item \verb|THREAD_MAGIC|暂时不知道什么用
+    \item 设置thread名字
+    \item \verb|retcode_wait_queue|的前驱后继都指向自己
+    \item 从\verb|tpidr_el1|中拿到\verb|boot_cpu_fake_thread_pointer_location|的地址
+
+    \item \verb|__has_feature(safe_stack)|是clang的特性，对gcc来说，
+        \verb|unsafe_sp|就是0（在start.S里安排的）
+    \item 把x18保存在\verb|current_percpu_ptr|里
+    \item 让\verb|tpidr_el1|指向这个真正的\verb|thread_t|，也就是percpu里的
+    \verb|idle_thread|
+    \item 把这个thread加到全局的thread list上
+\end{enumerate}
+
+
+\verb|sched_init_early()|初始化各个cpu的run queue为空。
+
+调用C++的全局变量的构造函数\verb|__init_array_start|。
+
+\verb|lk_init_level()|
+
+\verb|required_flag = LK_INIT_FLAG_PRIMARY_CPU|
+
+\verb|start_level = LK_INIT_LEVEL_EARLIEST|
+
+\verb|stop_level = LK_INIT_LEVEL_ARCH_EARLY - 1|
+
+这次没有匹配的init函数可以被调用。（也许我漏掉了？）
+
+\verb|arch_curr_cpu_num_slow()|返回0，因为这时\verb|arm64_cpu_map|还没有初始化。
+
+\verb|arch.cpp: arm64_cpu_early_init()|
+
+把x18指向当前cpu的percpu.
+
+让\verb|VBAR_EL1|指向\verb|exceptions.S|中的\verb|arm64_el1_exception_base|.
+
+把一些cpu feature读到\verb|arm64_features|里
+
+打开DAIF遮掩位。
+
+\verb|main.cpp: platform_early_init()|
+
+\verb|bootdata_paddr|存放的是initrd的加载地址0x48000000。boot-shim会把从device tree
+中读出来的initrd的加载地址写入\verb|bootdata_paddr|。此外，qemu会把内核加载到0x40080000处。
+内核的实际物理地址就是0x40090000。这些细节需要从qemu的源码中获得。
+
+\verb|boot_reserve_add_range(get_kernel_base_phys(), get_kernel_size())|
+把kernel占用的物理地址区域保留起来，也就是0x40090000开始的一块区域。
+
+接下来会处理\verb|append_board_bootdata()|里加入的一些bootdata的section.
+
+然后到\verb|pdev_init()|里调用各个周边设备驱动的初始化代码。
+
+把ramdisk所在的0x48000000开始的一块内存保留起来。
+
+kernel.memory-limit-mb这个命令行参数应该是没有设置的。
+
+在每个物理内存mem arena的尾部放置的是一堆描述page的\verb|vm_page_t|。
+
+把之前标记为保留的内存区域在arena中保留出来，标记成WIRED。
+
+\verb|platform_early_init()|结束。
+
+终于来到了"welcome to Zircon"。
+
+接下来调用\verb|crypto::GlobalPRNG::EarlyBootSeed()|，初始化一些随机数生成器相关的东西。
+
+进入\verb|vm_init_preheap()|，初始化一个唯一的内核虚拟地址空间。
+
+把boot time allocator用掉的内存（主要是分配给translation table）在物理内存管理pmm里标记为已用。
+
+随机保留分配一些页面。可能是为了增加内存随机性。
+
+用dc zva把缓存置零。
+
+进入\verb|heap_init()|，把内核要使用的heap page申请出来。
+
+进入\verb|vm_init()|。为内核占用的虚拟地址区域创建VmObject. VmMapping好像只是记录一个vmo有哪些flags. 在创建VmMapping之后，
+Activate()的时候才把它插到parent，也就是RootVmar的ChildList里面。
+
+\verb|platform_init_postvm()|把外围设备的虚拟地址保留起来。
+
+\verb|kernel_init()|, 初始化多处理器的一些状态。初始化每个处理器的timer. 之后，内核就可以创建线程了。缺省的线程stack大小是8k.
+
+线程的切换通过改变x30完成。x30存储的是\verb|arm64_context_switch()|调用的下一条指令的地址。
+
+bootstrap2.
+
+初始化deferred procedure call (dpc)线程。
+
+初始化Handle和Arena. 这个过程没有page committed。内存页真正分配出去是在做Arena::Pool::Pop()的时候。
+在VmMappingCoalescer::Flush()里会建立物理页表的映射。在做VmMapping的时候，如果不指定起始地址，
+则会去找一个gap地址。
+
+PortDispatcher暂时不知道干啥的。
+
+进入\verb|arch_init()|
+
+给每个cpu创建一个idle thread.  释放副cpu的spin lock.
+
+进入\verb|platform_init()|. 给每个副cpu创建kernel stack, 是一个VmMapping.
+
+\verb|pdev_run_hooks()|
+
+moving to last init leve.
+
+user level init: ktrace, console, userboot.
+
+ktrace: 给它分配一块内存，缺省为32MB
+
+kernel console通过uart读命令。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

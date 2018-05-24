@@ -1,0 +1,128 @@
+\section{userboot}
+
+\verb|attempt_userboot()|
+
+首先拿到ramdisk的地址0x48000000。
+
+创建一个vmo作为userboot的user space stack.
+
+调用MapRange的地方
+\begin{enumerate}
+\item kstack
+\item Arena.Pool.Pop
+\item syscall
+\item MapObjectInternal(), 如果要求的话。
+\end{enumerate}
+\verb|stack_vmo|还没有commit
+
+创建一个vmo放ramdisk
+
+在堆上构造bootstrap message.
+
+libuserboot.so是通过userboot-image.S嵌入到内核映像里的。
+
+把stack vmo映射好，但是没有commit page. 这个是userboot用户线程的user stack.
+
+\verb|make_bootstrap_channel()|。一个channel由2个peer组成，每方都有自己的message list.
+
+\verb|system/core/userboot/start.c:_start()|进入用户模式。
+
+
+附录：
+
+
+\begin{verbatim}
+linking userlib build-arm64/system/ulib/zircon/libzircon.so
+
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld.gold -nostdlib --build-id 
+  -z noexecstack -z max-page-size=4096 -z combreloc -z relro -z now -z text 
+  --hash-style=gnu --eh-frame-hdr -z defs -T scripts/rodso.ld -shared 
+  -soname libzircon.so  
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_cache_flush.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_channel_call.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_deadline_after.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_status_get_string.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_system_get_dcache_line_size.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_system_get_features.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_system_get_num_cpus.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_system_get_physmem.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_system_get_version.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_ticks_get.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_ticks_per_second.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/syscall-wrappers.cpp.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/data.S.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_futex_wake_handle_close_thread_exit-arm64.S.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/zx_vmar_unmap_handle_close_thread_exit-arm64.S.o 
+  ./build-arm64/system/ulib/zircon/system/ulib/zircon/syscalls-arm64.S.o   
+  scripts/dso_handle.ld    
+  /Users/xzx/zircon/prebuilt/downloads/gcc/bin/../lib/gcc/aarch64-elf/6.3.0/libgcc.a 
+  -o build-arm64/system/ulib/zircon/libzircon.so
+
+
+
+userboot-code.h:
+
+#define USERBOOT_FILENAME "./build-arm64/system/core/userboot/libuserboot.so"
+#define USERBOOT_CODE_START 0x3000
+#define USERBOOT_CODE_END (((USERBOOT_CODE_START + 0xa000 + (1 << PAGE_SIZE_SHIFT) - 1) >> PAGE_SIZE_SHIFT) << PAGE_SIZE_SHIFT)
+#define USERBOOT_ENTRY 0x0000000000003b50
+#define USERBOOT_ENTRY_SIZE 0x00000000000008e4
+
+generating build-arm64/system/core/userboot/vdso-syms.h
+
+scripts/shlib-symbols -a './prebuilt/downloads/gcc/bin/aarch64-elf-nm' 
+  build-arm64/system/ulib/zircon/libzircon.so > 
+  build-arm64/system/core/userboot/vdso-syms.h
+
+generating build-arm64/system/core/userboot/vdso-syms.ld
+
+./prebuilt/downloads/gcc/bin/aarch64-elf-gcc -E -P 
+  -include system/core/userboot/vdso-syms.ld.h 
+  build-arm64/system/core/userboot/vdso-syms.h > 
+  build-arm64/system/core/userboot/vdso-syms.ld
+
+linking userlib build-arm64/system/core/userboot/libuserboot.so
+
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld.gold -nostdlib --build-id 
+  -z noexecstack -z max-page-size=4096 -z combreloc -z relro -z now -z text 
+  --hash-style=gnu --eh-frame-hdr -z defs -T scripts/rodso.ld -e _start 
+  -shared -soname libuserboot.so 
+  ./build-arm64/system/core/userboot/system/core/userboot/bootdata.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/bootfs.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/userboot-elf.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/option.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/start.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/loader-service.c.o 
+  ./build-arm64/system/core/userboot/system/core/userboot/util.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/memcmp.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/memcpy.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/memset.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/strlen.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/strncmp.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/musl/src/string/memmove.c.o 
+  ./build-arm64/system/core/userboot/system/ulib/elfload/elf-load.c.o 
+  ./build-arm64/system/core/userboot/system/ulib/bootdata/decompress.c.o 
+  ./build-arm64/system/core/userboot/third_party/ulib/lz4/lz4.c.o 
+  ./build-arm64/system/core/userboot/system/ulib/ldmsg/ldmsg.c.o    
+  ./build-arm64/system/core/userboot/vdso-syms.ld scripts/dso_handle.ld  
+  ./build-arm64/system/ulib/runtime/libruntime.a  
+  /Users/xzx/zircon/prebuilt/downloads/gcc/bin/../lib/gcc/aarch64-elf/6.3.0/libgcc.a 
+  -o build-arm64/system/core/userboot/libuserboot.so
+
+generating build-arm64/system/core/userboot/libuserboot.so.strip
+
+./prebuilt/downloads/gcc/bin/aarch64-elf-objcopy --strip-all 
+  build-arm64/system/core/userboot/libuserboot.so 
+  build-arm64/system/core/userboot/libuserboot.so.strip
+
+generating build-arm64/kernel/lib/userboot/userboot-code.h
+
+scripts/gen-rodso-code.sh './prebuilt/downloads/gcc/bin/aarch64-elf-nm' 
+    './prebuilt/downloads/gcc/bin/aarch64-elf-readelf' 
+    build-arm64/kernel/lib/userboot/userboot-code.h.new USERBOOT 
+    ./build-arm64/system/core/userboot/libuserboot.so
+
+\end{verbatim}
+
+
+
