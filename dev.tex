@@ -3,14 +3,11 @@
 zedboot means: after booting the target, the target will through network get the real 
 OS files on to the internal storage.
 
-问题1: 没有特殊的bootloader能否启动vim2
-
 问题2：zbi是否会根据-o 里面的board name来选择输入文件。不会。vim2不需要特殊的bootimage.
 
 问题3: fastboot flash 后面的参数boot part有哪几种。是什么意思。emmc如何分区的。在安卓里，
   fastboot flash recovery xxx.img
 在flash-hikey里，有很多种。
-
 
 fastboot是通过usb-c线flash过去的。
 
@@ -128,3 +125,11 @@ note also that some of the items in the amlogic boot images may be encrypted,
 so you may not read them directly (check the calls to aml_encrypt_$(SOC) in 
 u-boot’s Makefile for that)
 \end{verbatim}
+
+mmcblk0boot0, mmcblk0boot1, mmcblk0是不同的分区。之所以内容相同是因为u-boot在
+写入bootloader的时候会把3个分区都写一遍。
+
+Khadas u-boot在构建的时候会把bl2, bl30, bl31, bl32和u-boot一起打包。其中bl2, bl30, bl31, bl32
+都是Amlogic提供的二进制，没有源码。
+
+Khadas的bl33，也就是u-boot不能load zircon.
