@@ -14,6 +14,13 @@ userboot里面是手工组装这个消息。如果是普通应用层应该会把
 
 \verb|zx_proc_args_t|是传递进程参数的固定的消息格式。作为data写入MessagePack.
 
+\begin{verbatim}
+dc_prepare_proxy()
+        dc_create_proxy()
+        dc_new_devhost()
+        dh_create_device()
+\end{verbatim}
+
 
 到达devmgr:main()
 \begin{verbatim}
@@ -45,3 +52,102 @@ use launchpad, to be looked ...
 
 
 
+加载驱动的过程：
+
+dc进程：
+\begin{verbatim}
+coordinator()
+  find_loadable_drivers()
+    di_read_driver_info()
+      found_driver()
+        dc_driver_added()
+          if dc_running  then queue WORK_DRIVER_ADDED  实际上dc_running == false
+
+process_work()
+WORK_DRIVER_ADDED:
+  dc_handle_new_driver()
+    dc_bind_driver()
+      dc_attempt_bind()
+        dc_prepare_proxy()
+          dc_create_proxy()  为父设备创建一个代理设备
+          创建h0, h1
+          dc_new_devhost()   proxy->devhost会与devhost进程有channel连接
+          dh_create_device()  向devhost进程发送DC_OP_CREATE_DEVICE消息，
+                              创建新的channel. 一头设置给proxy dev,在dc里监听起来。
+                              另一头作为handle[0]传给devhost(存放在devhost里proxy device里面，
+                              作为其他设备的parent).  从而dc和dh里面的proxy device之间
+                              建立了rpc通道。
+
+
+                              h1作为handle[2]传过去，这个目前似乎只有pci_rpc_request用于
+                              发布出去的rpcch，
+                              跟别的关系不大。
+
+          dh_connect_proxy()  把h0作为DC_OP_CONNECT_PROXY传过去
+        dh_bind_driver()  向dh进程发送DC_OP_BIND_DRIVER消息。
+
+DC_OP_ADD_DEVICE:
+  dc_add_device()
+    创建子device, 把发来的hrpc设置好。监听。
+    添加WORK_DEVICE_ADDED
+
+WORK_DEVICE_ADDED:
+  dc_handle_new_device()
+    寻找匹配驱动
+    dc_attempt_bind()
+                
+dh进程：
+DC_OP_CREATE_DEVICE:
+  dh_find_driver()
+  driver->ops->create(hin[2])
+    device_add()
+      device_add_from_driver()
+        devhost_device_create()
+        devhost_device_add()
+          proxy device case: 把rpc记录到dev里面，返回
+          
+  监听hin[0], 至此proxydev和 devhost之间建立了rpc通道。
+
+DC_OP_CONNECT_PROXY:
+  proxy_ios_create()  在devhost进程里监听传来的h0
+
+DC_OP_BIND_DRIVER:
+  调用driver的bind()
+
+device_add()
+  device_add_from_driver()
+    devhost_device_add()
+      devhost_add()
+        创建hrpc, hsend
+        给dc发送DC_OP_ADD_DEVICE消息，把hsend发回去，监听hrpc.
+
+\end{verbatim}
+
+coordinator()
+首先创建sys, test二个devhost进程。
+在遍历驱动的时候，创建root, misc(console)二个devhost 进程
+
+dc prepare proxy引起的devhost的驱动的create方法
+第一次调用add device只会把hrpc加入
+devhost端的proxy设备里。之后的驱动的create方法中的add device才会
+引起dc端的消息。
+在dc里，设备都是创建在proxy device下面的。
+
+dmctl可以动态添加driver.
+
+例子：
+dc: create device "platform"
+dh: add device platform
+dc: 匹配到qemu-bus 驱动，让dh那边加载这个驱动
+dh: 调用了qemu-bus驱动，里面又有Add device, 回到dc
+dc: 创建pci, pl031设备
+
+
+
+qemu_bus_bind()
+    device_get_protocol(parent)
+        dev->ops->get_protocol(dev->ctx == dev)
+          platform_bus_get_protocol()
+              protocol->ctx= bus = ctx 就是dev
+
+              
