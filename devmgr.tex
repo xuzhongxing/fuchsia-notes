@@ -121,8 +121,6 @@ device_add()
         创建hrpc, hsend
         给dc发送DC_OP_ADD_DEVICE消息，把hsend发回去，监听hrpc.
 
-\end{verbatim}
-
 coordinator()
 首先创建sys, test二个devhost进程。
 在遍历驱动的时候，创建root, misc(console)二个devhost 进程
@@ -149,5 +147,6 @@ qemu_bus_bind()
         dev->ops->get_protocol(dev->ctx == dev)
           platform_bus_get_protocol()
               protocol->ctx= bus = ctx 就是dev
+\end{verbatim}
 
               
