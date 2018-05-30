@@ -114,12 +114,13 @@ DC_OP_CONNECT_PROXY:
 DC_OP_BIND_DRIVER:
   调用driver的bind()
 
-device_add()
-  device_add_from_driver()
-    devhost_device_add()
-      devhost_add()
-        创建hrpc, hsend
-        给dc发送DC_OP_ADD_DEVICE消息，把hsend发回去，监听hrpc.
+driver's bind op:
+  device_add()
+    device_add_from_driver()
+      devhost_device_add()
+        devhost_add()
+          创建hrpc, hsend
+          给dc发送DC_OP_ADD_DEVICE消息，把hsend发回去，监听hrpc.
 
 coordinator()
 首先创建sys, test二个devhost进程。
