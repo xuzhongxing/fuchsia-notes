@@ -12,3 +12,7 @@ gold对于aarch64默认entry symbol是\verb|_start|
 vmobject可以从一个地址和size创建出来。也可以clone出来。
 
 ld.so会把application的phdr全部映射一遍，其中有一个segment包含ehdr, 从中得到entry addr (需要用映射到的地址进行修正)
+
+
+
+在进程创建的时候，会给它一个root VMAR handle.

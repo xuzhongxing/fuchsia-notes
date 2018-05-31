@@ -1,0 +1,8 @@
+\section{进程间通信}
+
+\verb|object_wait_one|可以等待一个handle上的信号。
+
+如果要等很多handle，用一个port来等。用\verb|zx_object_wait_async|
+把handle绑到port上。
+
+event是最简单的可等待的对象。

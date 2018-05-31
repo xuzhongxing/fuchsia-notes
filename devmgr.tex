@@ -150,4 +150,28 @@ qemu_bus_bind()
               protocol->ctx= bus = ctx 就是dev
 \end{verbatim}
 
+devmgr最后会创建一个新的线程启动\verb|service_starter()|
+\begin{verbatim}
+service_start()
+        thrd_create_with_name(&t, analyzer_starter, NULL, "analyzer-starter")
+        如果没有禁止netsvc, devmgr_launch("/boot/bin/netsvc")
+        如果没有禁止virtcon, devmgr_launch("/boot/bin/virtual-console")
+        至此，zircon layer里的活应该干完了。
+        thrd_create_with_name(&t, fuchsia_starter, NULL, "fuchsia-starter")
+\end{verbatim}
+
+\begin{verbatim}
+fuchsia_start()
+        wait for fshost to start
+        
+        load_system_drivers()
+                find_loadable_drivers("/system/driver");
+                find_loadable_drivers("/system/lib/driver");
+
+        devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
+                          argv_appmgr, NULL, -1, appmgr_hnds, appmgr_ids,
+                          appmgr_hnd_count, NULL, FS_FOR_APPMGR);
+
+\end{verbatim}
+
               
