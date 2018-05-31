@@ -1,0 +1,94 @@
+\section{appmgr}
+
+appmgr的启动
+
+\begin{verbatim}
+
+static const char* argv_appmgr[] = { "/system/bin/appmgr" };
+appmgr_hnds[0] = appmgr_req_srv;
+devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
+                argv_appmgr, NULL, -1, appmgr_hnds, appmgr_ids,
+                appmgr_hnd_count, NULL, FS_FOR_APPMGR);
+
+    env是空
+    launchpad_create(job_copy, name, &lp);
+        launchpad_create_with_jobs(job, xjob, name, result);
+            zx_process_create(creation_job, name, name_len, 0, &proc, &vmar);
+            launchpad_create_with_process(proc, vmar, &lp)
+    
+    file_vmo = devmgr_load_file("/system/bin/appmgr")
+        bootfs_open(&bootfs, path + 6, &vmo);
+            zx_vmo_clone(bfs->vmo, ZX_VMO_CLONE_COPY_ON_WRITE,
+                          e->data_off, e->data_len, &vmo)
+    launchpad_load_from_vmo(lp, file_vmo)
+        launchpad_file_load_with_vdso(lp, vmo);
+            launchpad_file_load(lp, vmo);
+                launchpad_elf_load_body(lp, first_line, to_read, vmo);
+                    不是脚本，作为elf 加载
+                    elf_load_start(vmo, hdr_buf, buf_sz, &elf)
+                    elf_load_get_interp(elf, vmo, &interp, &interp_len)
+                    handle_interp(lp, vmo, interp, interp_len)
+                        加载动态连接器
+                        elf_load_start(interp_vmo, NULL, 0, &elf)
+                        elf_load_finish(lp_vmar(lp), elf, interp_vmo,
+                                 &segments_vmar, &lp->base, &lp->entry);
+                        真正的exe vmo会作为HND_EXEC_VMO类型的handle传给ld.so
+
+
+            launchpad_load_vdso(lp, ZX_HANDLE_INVALID);
+                launchpad_elf_load_extra(lp, vmo, &lp->vdso_base, NULL);
+                    elf_load_start(vmo, NULL, 0, &elf)
+                    elf_load_finish(lp_vmar(lp), elf, vmo, NULL, base, entry)
+
+            launchpad_add_vdso_vmo(lp);
+
+    launchpad_go(lp, proc, &errmsg)
+        launchpad_start(lp, &h);
+            prepare_start(lp, "initial-thread", to_child, &thread, &sp);
+                zx_thread_create(lp_proc(lp), thread_name,strlen(thread_name), 0, thread);
+                send_loader_message(lp, *thread, to_child);
+                    把arg, env, names作为消息发送给新进程
+                
+                create stack vmo for the new thread
+
+            zx_process_start(proc, thread, lp->entry, sp, child_bootstrap, lp->vdso_base);
+
+动态链接库是libc.so. 入口在dl-entry.S文件里。这里会链接真正的可执行文件，找到它的
+入口地址，进入它。实现在zircon/third_party/ulib/musl/ldso/dynlink.c
+
+可执行文件的入口在zircon/third_party/ulib/musl/arch/aarch64/Scrt1.S
+
+__libc_start_main()设置一些全局变量
+__environ
+__zircon_process_self;
+__zircon_vmar_root_self;
+__zircon_job_default;
+main_thread_handle
+
+__allocate_thread分配线程需要的内存
+
+进入start_main()，调用构造函数。进入main!
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\end{verbatim}    
