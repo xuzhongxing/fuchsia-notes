@@ -48,6 +48,7 @@ devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
                 zx_thread_create(lp_proc(lp), thread_name,strlen(thread_name), 0, thread);
                 send_loader_message(lp, *thread, to_child);
                     把arg, env, names作为消息发送给新进程
+                    names包含了那些appmgr可见的namespace的路径，定义在devmgr-fdio.c:FSTAB
                 
                 create stack vmo for the new thread
 
@@ -55,6 +56,8 @@ devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
 
 动态链接库是libc.so. 入口在dl-entry.S文件里。这里会链接真正的可执行文件，找到它的
 入口地址，进入它。实现在zircon/third_party/ulib/musl/ldso/dynlink.c
+
+这里推测，fuchsia认为动态链接是libc的功能，不是libzircon的功能。
 
 可执行文件的入口在zircon/third_party/ulib/musl/arch/aarch64/Scrt1.S
 
@@ -69,26 +72,81 @@ __allocate_thread分配线程需要的内存
 
 进入start_main()，调用构造函数。进入main!
 
+下面这些结构用来模拟unix fd io
+
+typedef struct {
+    mtx_t lock;
+    mtx_t cwd_lock;
+    bool init;
+    mode_t umask;
+    fdio_t* root;
+    fdio_t* cwd;
+    fdio_t* fdtab[FDIO_MAX_FD];
+    fdio_ns_t* ns;
+    char cwd_path[PATH_MAX];
+} fdio_state_t;
+
+extern fdio_state_t __fdio_global_state;
+
+#define fdio_lock (__fdio_global_state.lock)
+#define fdio_root_handle (__fdio_global_state.root)
+#define fdio_cwd_handle (__fdio_global_state.cwd)
+#define fdio_cwd_lock (__fdio_global_state.cwd_lock)
+#define fdio_cwd_path (__fdio_global_state.cwd_path)
+#define fdio_fdtab (__fdio_global_state.fdtab)
+#define fdio_root_init (__fdio_global_state.init)
+#define fdio_root_ns (__fdio_global_state.ns)
+
+\end{verbatim}
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+#ifdef __Fuchsia__
+
+typedef struct async_dispatcher async_t;
+
+static const async_ops_t async_loop_ops = {
+    .version = ASYNC_OPS_V1,
+    .reserved = 0,
+    .v1 = {
+        .now = async_loop_now,
+        .begin_wait = async_loop_begin_wait,
+        .cancel_wait = async_loop_cancel_wait,
+        .post_task = async_loop_post_task,
+        .cancel_task = async_loop_cancel_task,
+        .queue_packet = async_loop_queue_packet,
+        .set_guest_bell_trap = async_loop_set_guest_bell_trap,
+    },
+};
+
+vfs.ServeDirectory(directory, std::move(h2)
+
+PublishRootDir(&root_realm, &publish_vfs);
+
+async::PostTask(async_t* async, fbl::Closure handler)
+    PostTaskForTime(async, static_cast<fbl::Closure&&>(handler),async::Now(async));
+        async_post_task(async, task);
+            async->ops->v1.post_task(async, task);
+
+root_realm.CreateApplication(std::move(launch_info), sysmgr.NewRequest());
 
 
+Classify出来的应该是kProcess
+CreateApplicationWithProcess(std::move(package), std::move(launch_info),
+                    std::move(controller), std::move(ns));
+zx::process process = CreateProcess(job_for_child_, std::move(executable), url,
+                                  std::move(launch_info), zx::channel(), builder.Build());
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-\end{verbatim}    
+\end{verbatim}

@@ -1,9 +1,15 @@
 \section{System Calls}
 
+TODO: 细节还没有去看。
+
+system call的入口函数定义在libzircon.so里，由内核直接映射到每个进程的地址空间里。
+
 \verb|syscall-vdso.wrappers.inc|里定义了\verb|zx_*|到\verb|_zx_*|的
-weak alias.
+weak alias. 但是这里不全。
 
 \verb|syscall-entry.h|里定义了\verb|SYSCALL_*|入口符号。
 
 \verb|syscalls-arm64.S|里定义了真正的入口。
+
+zircon/kernel/syscalls/下面定义了真正的系统调用\verb|sys_*|
 
