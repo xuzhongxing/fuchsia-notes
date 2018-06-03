@@ -1,1 +1,80 @@
 \section{sysmgr}
+
+\begin{verbatim}
+[5474/22304] /usr/bin/env ../../build/fidl/gen_response_file.py 
+    --out-response-file fidling/gen/garnet/public/lib/app/fidl/fidl.args 
+    --out-libraries fidling/gen/garnet/public/lib/app/fidl/fidl.libraries 
+    --json fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.json 
+    --c-header fidling/gen/fuchsia/sys/c/fidl.h 
+    --tables fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.tables.cc 
+    --name fuchsia.sys 
+    --sources ../../garnet/public/lib/app/fidl/component_controller.fidl 
+    ../../garnet/public/lib/app/fidl/environment.fidl 
+    ../../garnet/public/lib/app/fidl/environment_controller.fidl 
+    ../../garnet/public/lib/app/fidl/flat_namespace.fidl 
+    ../../garnet/public/lib/app/fidl/launcher.fidl 
+    ../../garnet/public/lib/app/fidl/loader.fidl 
+    ../../garnet/public/lib/app/fidl/runner.fidl 
+    ../../garnet/public/lib/app/fidl/service_provider.fidl 
+    --dep-libraries fidling/gen/garnet/public/lib/mem/fidl/fidl.libraries
+
+[9946/22304] /usr/bin/env ../../build/fidl/gen_response_file.py 
+    --out-response-file fidling/gen/garnet/public/lib/guest/fidl/fidl.args 
+    --out-libraries fidling/gen/garnet/public/lib/guest/fidl/fidl.libraries 
+    --json fidling/gen/garnet/public/lib/guest/fidl/fidl.fidl.json 
+    --c-header fidling/gen/fuchsia/guest/c/fidl.h 
+    --tables fidling/gen/garnet/public/lib/guest/fidl/fidl.fidl.tables.cc 
+    --name fuchsia.guest 
+    --sources ../../garnet/public/lib/guest/fidl/guest_controller.fidl 
+    ../../garnet/public/lib/guest/fidl/guest_environment.fidl 
+    ../../garnet/public/lib/guest/fidl/guest_manager.fidl 
+    ../../garnet/public/lib/guest/fidl/vsock.fidl 
+    --dep-libraries fidling/gen/garnet/public/lib/ui/views/fidl/v1.libraries
+
+
+\end{verbatim}
+
+
+\begin{verbatim}
+
+main.cc: main()
+================
+
+auto command_line = fxl::CommandLineFromArgcArgv(argc, argv);
+    CommandLineFromIterators(argv, argv + argc); char **
+        CommandLineFromIteratorsFindFirstPositionalArg<InputIterator>(first, last, nullptr);
+
+fxl::SetLogSettingsFromCommandLine(command_line)
+    ParseLogSettings(command_line, &settings)
+
+async::Loop loop(&kAsyncLoopConfigMakeDefault);
+    Loop::Loop(const async_loop_config_t* config)
+        async_loop_create(config, &loop_);
+            async_loop_t* loop = calloc(1u, sizeof(async_loop_t));
+            初始化一些变量
+            zx_port_create(0u, &loop->port);
+                PortDispatcher::Create(options, &dispatcher, &rights);
+                    PortDispatcher(options);
+            zx_timer_create(0u, ZX_CLOCK_MONOTONIC, &loop->timer);     
+            zx_object_wait_async(loop->timer, loop->port, KEY_CONTROL,
+                                      ZX_TIMER_SIGNALED,
+                                      ZX_WAIT_ASYNC_REPEATING);
+            让port等待timer
+            async_set_default(&loop->async);
+                g_default = async;
+
+
+
+sysmgr::App app;
+
+zx::channel CreateStaticServiceRootHandle() {
+  zx::channel h1, h2;
+  if (zx::channel::create(0, &h1, &h2) != ZX_OK) return zx::channel();
+  // TODO(abarth): Use kServiceRootPath once that actually works.
+  if (fdio_service_connect("/svc/.", h1.release()) != ZX_OK)
+    return zx::channel();
+  return h2;
+}
+
+
+\end{verbatim}

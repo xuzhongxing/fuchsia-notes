@@ -145,8 +145,8 @@ root_realm.CreateApplication(std::move(launch_info), sysmgr.NewRequest());
 
 Classify出来的应该是kProcess
 CreateApplicationWithProcess(std::move(package), std::move(launch_info),
-                    std::move(controller), std::move(ns));
+                             std::move(controller), std::move(ns));
 zx::process process = CreateProcess(job_for_child_, std::move(executable), url,
-                                  std::move(launch_info), zx::channel(), builder.Build());
+                                    std::move(launch_info), zx::channel(), builder.Build());
 
 \end{verbatim}
