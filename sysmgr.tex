@@ -1,41 +1,6 @@
 \section{sysmgr}
 
 \begin{verbatim}
-[5474/22304] /usr/bin/env ../../build/fidl/gen_response_file.py 
-    --out-response-file fidling/gen/garnet/public/lib/app/fidl/fidl.args 
-    --out-libraries fidling/gen/garnet/public/lib/app/fidl/fidl.libraries 
-    --json fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.json 
-    --c-header fidling/gen/fuchsia/sys/c/fidl.h 
-    --tables fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.tables.cc 
-    --name fuchsia.sys 
-    --sources ../../garnet/public/lib/app/fidl/component_controller.fidl 
-    ../../garnet/public/lib/app/fidl/environment.fidl 
-    ../../garnet/public/lib/app/fidl/environment_controller.fidl 
-    ../../garnet/public/lib/app/fidl/flat_namespace.fidl 
-    ../../garnet/public/lib/app/fidl/launcher.fidl 
-    ../../garnet/public/lib/app/fidl/loader.fidl 
-    ../../garnet/public/lib/app/fidl/runner.fidl 
-    ../../garnet/public/lib/app/fidl/service_provider.fidl 
-    --dep-libraries fidling/gen/garnet/public/lib/mem/fidl/fidl.libraries
-
-[9946/22304] /usr/bin/env ../../build/fidl/gen_response_file.py 
-    --out-response-file fidling/gen/garnet/public/lib/guest/fidl/fidl.args 
-    --out-libraries fidling/gen/garnet/public/lib/guest/fidl/fidl.libraries 
-    --json fidling/gen/garnet/public/lib/guest/fidl/fidl.fidl.json 
-    --c-header fidling/gen/fuchsia/guest/c/fidl.h 
-    --tables fidling/gen/garnet/public/lib/guest/fidl/fidl.fidl.tables.cc 
-    --name fuchsia.guest 
-    --sources ../../garnet/public/lib/guest/fidl/guest_controller.fidl 
-    ../../garnet/public/lib/guest/fidl/guest_environment.fidl 
-    ../../garnet/public/lib/guest/fidl/guest_manager.fidl 
-    ../../garnet/public/lib/guest/fidl/vsock.fidl 
-    --dep-libraries fidling/gen/garnet/public/lib/ui/views/fidl/v1.libraries
-
-
-\end{verbatim}
-
-
-\begin{verbatim}
 
 main.cc: main()
 ================
@@ -75,6 +40,15 @@ zx::channel CreateStaticServiceRootHandle() {
     return zx::channel();
   return h2;
 }
+
+当访问一个服务路径的时候，会创建相应的服务，然后连接这个服务
+it->second.ConnectToService(std::move(client_handle), service_name)
+    it->second的类型是component::Services
+    component::ConnectToService(directory_, std::move(request), service_path)
+        fdio_service_connect_at(directory.get(), service_path.c_str(),equest.release());
+            zxrio_connect(dir, h, ZXRIO_OPEN, ZX_FS_RIGHT_READABLE |
+                            ZX_FS_RIGHT_WRITABLE, 0755, path);
+                zx_channel_write(svc, 0, &msg, ZXRIO_HDR_SZ + msg.datalen, msg.handle, 1)
 
 
 \end{verbatim}

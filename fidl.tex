@@ -3,6 +3,12 @@
 \begin{verbatim}
 appmgr里用到了component/cpp/fidl.h
 
+首先用gen_response_file.py为一组fidl文件生成response file和library file。
+fidlc读入response file, 生成json ir。
+然后fidlgen为c++, dart, go, rust各生成一组接口文件。
+
+fidl compiler的前端在zircon里，后端在garnet里。
+
 /usr/bin/env ../../build/fidl/gen_response_file.py 
   --out-response-file fidling/gen/garnet/public/lib/app/fidl/fidl.args 
   --out-libraries fidling/gen/garnet/public/lib/app/fidl/fidl.libraries 
@@ -20,6 +26,10 @@ appmgr里用到了component/cpp/fidl.h
             ../../garnet/public/lib/app/fidl/service_provider.fidl 
   --dep-libraries fidling/gen/garnet/public/lib/mem/fidl/fidl.libraries
 
+/usr/bin/env ../../build/gn_run_binary.sh 
+    ../../buildtools/linux-x64/clang/bin 
+    host_x64/fidlc 
+    @fidling/gen/garnet/public/lib/app/fidl/fidl.args
 
 /usr/bin/env ../../build/gn_run_binary.sh 
   ../../buildtools/linux-x64/clang/bin 

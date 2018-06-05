@@ -81,9 +81,57 @@ async::Loop loop(&kAsyncLoopConfigMakeDefault)
 fs::SynchronousVfs vfs(loop.async())
     缺省构造函数
 
+component::RootLoader root_loader
+    一个服务，用的fidl接口
 
+directory->AddEntry(
+    component::Loader::Name_, //"component.Loader"
+    fbl::AdoptRef(new fs::Service([&root_loader](zx::channel channel) {
+        root_loader.AddBinding(
+            fidl::InterfaceRequest<component::Loader>(std::move(channel)));
+        return ZX_OK;
+    })));
 
+vfs.ServeDirectory(directory, std::move(h2)
+    请求应该是从h2进来
+    // Tell the calling process that we've mounted the directory.
+    r = channel.signal_peer(0, ZX_USER_SIGNAL_0)
+    vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN);
+        vfs->ServeConnection(fbl::make_unique<Connection>(vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
+            connection->Serve()
+                wait_.set_object(channel_.get());
+                    wait_.object = object;
+                wait_.Begin(vfs_->async());
+                    async_begin_wait(async, &wait_)
+                        async->ops->v1.begin_wait(async, wait)
+                            zx_object_wait_async(
+                                wait->object, loop->port, (uintptr_t)wait, wait->trigger, ZX_WAIT_ASYNC_ONCE);
+                            把前面那个h2挂到async loop的port上
 
+component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
+    zx::channel::create(0, &svc_channel_server_, &svc_channel_client_)
+    default_namespace_->services().set_backing_dir(std::move(host_directory))
+    default_namespace_->services().AddBinding(service_provider.NewRequest());
+        zx::channel::create(0, &h1, &h2) 
+        Bind(std::move(h1), async) 
+        return InterfaceRequest<Interface>(std::move(h2));
+
+        ServiceProviderBridge::AddBinding
+            bindings_.AddBinding(this, std::move(request));
+                bindings_.push_back
+
+    loader_ = ConnectToService<Loader>(service_provider.get());
+        service_provider->ConnectToService(interface_name,
+                               interface_ptr.NewRequest().TakeChannel());
+
+    这里没太看懂。应该是service_provider和Loader服务建立联系了。
+    default_namespace_->services()是ServiceProviderBridge，它继承了ServiceProvider
+    service_provider是InterfacePtr<ServiceProvider>
+    NewRequest()建立与ServiceProvider服务端的通道，返回之，存到bindings里面。
+    把与Loader的通道发送给ServiceProvider服务端。
+
+PublishRootDir(&root_realm, &publish_vfs);
+    把从devmgr发来的通道挂到目录服务上
 
 
 ------------------------------------------------------

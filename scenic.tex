@@ -1,0 +1,29 @@
+\section{scenic}
+
+\begin{verbatim}
+
+ApplicationContext::ApplicationContext(zx::channel service_root,
+                                       zx::channel directory_request) {
+  incoming_services_.Bind(std::move(service_root));
+    directory_ = std::move(directory);
+  
+  outgoing_.Serve(std::move(directory_request));
+    vfs_.ServeDirectory(root_dir_, std::move(dir_request))
+  
+  environment_.NewRequest()  // InterfacePtr<Environment>::NewRequest()
+    zx::channel::create(0, &h1, &h2)
+    Bind(std::move(h1), async)
+      impl_->controller.reader().Bind(std::move(channel), async);  ????
+    
+    return InterfaceRequest<Interface>(std::move(h2))
+
+    把通道的一头挂在本地事件循环里，Environment服务的客户端。
+
+
+  incoming_services_.ConnectToService(environment_.NewRequest());
+
+
+  incoming_services_.ConnectToService(launcher_.NewRequest());
+}
+
+\end{verbatim}
