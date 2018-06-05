@@ -54,8 +54,8 @@ devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
 
             zx_process_start(proc, thread, lp->entry, sp, child_bootstrap, lp->vdso_base);
 
-动态链接库是libc.so. 入口在dl-entry.S文件里。这里会链接真正的可执行文件，找到它的
-入口地址，进入它。实现在zircon/third_party/ulib/musl/ldso/dynlink.c
+动态链接库是libc.so. 入口在dl-entry.S文件里。这里会链接真正的可执行文件，找到
+它的入口地址，进入它。实现在zircon/third_party/ulib/musl/ldso/dynlink.c
 
 这里推测，fuchsia认为动态链接是libc的功能，不是libzircon的功能。
 
@@ -71,6 +71,22 @@ main_thread_handle
 __allocate_thread分配线程需要的内存
 
 进入start_main()，调用构造函数。进入main!
+
+argv = "/system/bin/appmgr"
+
+
+async::Loop loop(&kAsyncLoopConfigMakeDefault)
+    async_loop_create(config, &loop_)
+    
+fs::SynchronousVfs vfs(loop.async())
+    缺省构造函数
+
+
+
+
+
+
+------------------------------------------------------
 
 下面这些结构用来模拟unix fd io
 
@@ -96,24 +112,6 @@ extern fdio_state_t __fdio_global_state;
 #define fdio_fdtab (__fdio_global_state.fdtab)
 #define fdio_root_init (__fdio_global_state.init)
 #define fdio_root_ns (__fdio_global_state.ns)
-
-\end{verbatim}
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
-
-#ifdef __Fuchsia__
 
 typedef struct async_dispatcher async_t;
 

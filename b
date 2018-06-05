@@ -1,1 +1,1 @@
-xelatex zircon-notes.tex
+xelatex fuchsia-notes.tex

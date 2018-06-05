@@ -1,0 +1,54 @@
+\section{fshost}
+
+fshost是文件系统服务进程。
+
+\begin{verbatim}
+zircon/system/core/devmgr/fshost.c: main()
+
+_fs_root = zx_get_startup_handle(PA_HND(PA_USER0, 0));
+    拿到与devmgr通信通道
+devfs_root = zx_get_startup_handle(PA_HND(PA_USER0, 1));
+svc_root = zx_get_startup_handle(PA_HND(PA_USER0, 2));
+zx_handle_t devmgr_loader = zx_get_startup_handle(PA_HND(PA_USER0, 3));
+fshost_event = zx_get_startup_handle(PA_HND(PA_USER1, 0));
+
+fshost_start();
+    setup_bootfs();
+        把/boot下的内容从bootdata里提出来
+        setup_bootfs_vmo()
+            system分区也是直接映射在内存里的vmo? 有多大啊？
+
+
+    vfs_global_init(vfs_create_global_root());
+        vfs_create_global_root()
+            创建memfs的根"<root>"
+        memfs::global_vfs_root = root;
+    fuchsia_start()
+        zx_object_signal(fshost_event, 0, FSHOST_SIGNAL_READY);
+
+vfs_connect_global_root_handle(_fs_root);
+    vfs_connect_root_handle(memfs::global_vfs_root, h);
+        vn->vfs()->ServeDirectory(fbl::RefPtr<fs::Vnode>(vn), fbl::move(ch));
+            vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN);
+                vfs->ServeConnection(fbl::make_unique<Connection>(
+                     vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
+
+                     wait_.set_object(channel_.get());
+                     return wait_.Begin(vfs_->async());
+
+
+fs_root = fs_root_clone()
+    vfs_create_global_root_handle(&h)
+        zx::channel::create(0, &h1, &h2)
+        vn->vfs()->ServeDirectory(fbl::RefPtr<fs::Vnode>(vn),
+                                  fbl::move(h1))
+        *out = h2.release()                         
+    fs_root是通道的一头
+
+fdio_ns_bind(ns, "/system", fs_clone("system"))
+    zx_channel_create(0, &h0, &h1)
+    fdio_open_at(fs_root, path, FS_DIR_FLAGS, h1)
+        zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path)
+            把h1发送给fs_root另一头的事件处理
+    return h0
+\end{verbatim}

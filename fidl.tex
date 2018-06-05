@@ -1,0 +1,33 @@
+\section{fidl}
+
+\begin{verbatim}
+appmgr里用到了component/cpp/fidl.h
+
+/usr/bin/env ../../build/fidl/gen_response_file.py 
+  --out-response-file fidling/gen/garnet/public/lib/app/fidl/fidl.args 
+  --out-libraries fidling/gen/garnet/public/lib/app/fidl/fidl.libraries 
+  --json fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.json 
+  --c-header fidling/gen/component/c/fidl.h 
+  --tables fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.tables.cc 
+  --name component 
+  --sources ../../garnet/public/lib/app/fidl/application_launcher.fidl 
+            ../../garnet/public/lib/app/fidl/component_controller.fidl 
+            ../../garnet/public/lib/app/fidl/environment.fidl 
+            ../../garnet/public/lib/app/fidl/environment_controller.fidl 
+            ../../garnet/public/lib/app/fidl/flat_namespace.fidl 
+            ../../garnet/public/lib/app/fidl/loader.fidl 
+            ../../garnet/public/lib/app/fidl/runner.fidl 
+            ../../garnet/public/lib/app/fidl/service_provider.fidl 
+  --dep-libraries fidling/gen/garnet/public/lib/mem/fidl/fidl.libraries
+
+
+/usr/bin/env ../../build/gn_run_binary.sh 
+  ../../buildtools/linux-x64/clang/bin 
+  host_x64/fidlgen 
+  --json fidling/gen/garnet/public/lib/app/fidl/fidl.fidl.json 
+  --output-base fidling/gen/component/cpp/fidl 
+  --include-base fidling/gen 
+  --generators cpp
+
+
+\end{verbatim}

@@ -1,55 +1,136 @@
-\section{设备模型和驱动}
+\section{devmgr}
+
+\begin{verbatim}
+进程和通道handle的关系
+devmgr:appmgr_req_cli <--> appmgr:appmgr_req_srv
+devmgr:svchost_outgoing <--> svchost:dir_request
+devmgr:fs_root <--> fshost:handles[0]
+svchost:appmgr_svc <--> appmgr:appmgr_svc_req
+
+devmgr.c: main()
+
+先把从userboot传过来的loader service handle关掉
+
+devmgr_io_init();
+    zx_log_create(0, &h)
+    logger = fdio_logger_create(h)
+    fdio_bind_to_fd(logger, 1, 0);
+        fdio_fdtab[fd] = io;
+
+root_resource_handle = zx_get_startup_handle(PA_HND(PA_RESOURCE, 0));
+    这个要追溯到zircon/kernel/lib/userboot/userboot.cpp:
+    get_resource_handle(&handles[BOOTSTRAP_RESOURCE_ROOT]);
+        ResourceDispatcher::Create(&root, &rights, ZX_RSRC_KIND_ROOT, 0, 0);
+        这个root resource handle好像只是在关机时校验一下
+
+devfs_init(root_job_handler)
+    zx_channel_create(0, &h0, &h1)
+    iostate_create(&root_devnode, h0)
+    devfs_root = h1;
+    devfs_root是channel的一端，可以向另一端dc_rio_handler事件处理循环发消息
+
+
+zx_channel_create(0, &appmgr_req_cli, &appmgr_req_srv);
+    建立跟appmgr的通信通道, appmgr_req_srv会发送给appmgr
+
+zx_event_create(0, &fshost_event);
+    fs_host准备好的事件
+
+devmgr_svc_init()
+    svchost_start()
+        zx_channel_create(0, &dir_request, &svchost_outgoing)
+        zx_channel_create(0, &appmgr_svc_req, &appmgr_svc)
+
+        fdio_service_connect_at(appmgr_req_cli, "svc", appmgr_svc_req)
+            zxrio_connect(dir, h, ZXRIO_OPEN, ZX_FS_RIGHT_READABLE |
+                          ZX_FS_RIGHT_WRITABLE, 0755, path)
+                把appmgr_svc_req发送给appmgr_req_cli的另一端appmgr_req_srv
+                appmgr_svc后面会发给svchost，相当于建立了appmgr和svchost之间的通信通道
+        launchpad_add_handle(lp, dir_request, PA_DIRECTORY_REQUEST);
+            svchost_outgoing通向svchost进程，后面fs_clone("svc")会用到
+        launchpad_add_handle(lp, appmgr_svc, PA_HND(PA_USER0, 0));
+        launchpad_go(lp, &process, &errmsg)
+            启动svchost进程
+
+devmgr_vfs_init()
+    fshost_start()
+        zx_channel_create(0, &fs_root, &handles[0])
+            fs_root通道通往fshost的/
+        handles[n] = devfs_root_clone()
+            fdio_service_clone(devfs_root)
+                zx_channel_create(0, &cli, &srv)
+                zxrio_connect(svc, srv, ZXRIO_CLONE, ZX_FS_RIGHT_READABLE |
+                              ZX_FS_RIGHT_WRITABLE, 0755, "")
+                    把srv发送给devfs_root的另一端，也就是dc_rio_handler事件处理循环
+                    对ZXRIO_CLONE的处理是devfs_open(h) 设备节点是root
+                    把这个handle又挂在了dc_rio_handler事件处理循环上，挂在dc_port上
+                return cli
+                也就是建立了fshost与devfs的通信通道
+
+        handles[n] = fs_clone("svc")
+            zx_channel_create(0, &h0, &h1)
+            fs = svchost_outgoing
+            fdio_open_at(fs, path, flags, h1)
+                zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path)
+                    把h1发送给svchost
+            return h0
+            建立fshost与svchost的通信通道
+
+        zx_channel_create(0, &ldsvc, &handles[n])
+            让ldsvc通往fshost，看来fshost要承担elf加载的任务？
+
+        zx_handle_duplicate(bootfs.vmo, ZX_RIGHT_SAME_RIGHTS, &handles[n])
+            让fshost能够访问boot fs的vmo
+
+        zx_handle_duplicate(fshost_event, ZX_RIGHT_SAME_RIGHTS, &handles[n])
+            让fshost完事之后通过fshost_event通知devmgr
+
+        handles[n] = zx_get_startup_handle(PA_HND(PA_VMO_BOOTDATA, m))
+            让fshost能访问bootdata. bootdata包含压缩的boot fs
+        
+        把vdso vmo给fshost
+
+        devmgr_launch(svcs_job_handle, "fshost", argc, argv,
+                      envp, -1, handles, types, n, NULL, 0);
+            启动fshost
+
+    fdio_ns_create(&ns)
+        fdio_ns_bind(ns, "/system", fs_clone("system"))
+            zx_channel_create(0, &h0, &h1)
+            fdio_open_at(fs, path, flags, h1)
+                fs通向fshost
+                zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path)
+            return h0
+
+
+thrd_create_with_name(&t, service_starter, NULL, "service-starter")
+
+
+service_starter(void* arg)
+    thrd_create_with_name(&t, fuchsia_starter, NULL, "fuchsia-starter")
+
+fuchsia_starter(void* arg)
+    zx_object_wait_one(fshost_event, FSHOST_SIGNAL_READY, deadline, NULL)
+    zx_object_signal(fshost_event, FSHOST_SIGNAL_READY, 0)
+        再signal一次，目前没有人等待这个信号
+    把appmgr_req_srv发送给appmgr,建立devmgr和appmgr之间的通道
+    devmgr_launch(fuchsia_job_handle, "appmgr", countof(argv_appmgr),
+                          argv_appmgr, NULL, -1, appmgr_hnds, appmgr_ids,
+                          appmgr_hnd_count, NULL, FS_FOR_APPMGR)
+        会把FSTAB里除了FS_HUB(因为是appmgr自己)对应的fs_clone出来的handle都给appmgr发过去
+            包括devfs, fshost, svchost
+
+    
+
+\end{verbatim}
+
+
 有一个中心服务devmgr coordinator. 它会扫描驱动，为每个驱动launch一个devhost进程。launch完了之后会发送
 create device, bind driver这2个rpc给devhost. devhost会处理这2个rpc. 对于root device，不会处理，
 因为libname=""
 
 文档推荐在bind driver里调用add device。驱动本身是在devhost里运行的。devhost会rpc调用dev coordinator
 的add device方法。这个方法主要是创建dc里对设备的代表，发布到devfs里。
-
-
-在启动进程的时候，传递的第一个参数是一个channel handle.
-libc start main在拿到这个channel handle之后，读取它。channel里的message是MessagePack
-里面的data是\verb|zx_proc_args_t|。这个东西是由另一头用\verb|channel_write()|写进来的。
-userboot里面是手工组装这个消息。如果是普通应用层应该会把这个封装掉。
-
-\verb|zx_proc_args_t|是传递进程参数的固定的消息格式。作为data写入MessagePack.
-
-\begin{verbatim}
-dc_prepare_proxy()
-        dc_create_proxy()
-        dc_new_devhost()
-        dh_create_device()
-\end{verbatim}
-
-
-到达devmgr:main()
-\begin{verbatim}
-devfs_init():
-    iostate_create(&root_devnode)
-devmgr_vfs_init():
-    fshost_start():
-              loader_service:
-svc async的port等待的是另外一头的handle
-async里的线程等待的是port
-dl_set_loader_service()   把新创建的loader service设置为缺省的，关闭老的
-
-devfs_root_clone(): 创建一个channel, 返回一头，另一头封装在一个消息里发送给devfs_root
-                                devfs_root会在coordinator()中被轮询
-              问题在于devfs_root的另一头只是和dc_port   wait了一次。在处理完成之后
-              会立刻又wait一次！
-               另一头会传递给devfs_open()
-
-
-fs_clone("svc"): 
-        fdio_open_at(fs=appmgr_req_cli, path, flag, h1)
-        this function creates a channel and send one handle to appmgr, and returns the other 
-\end{verbatim}
-
-设置了一堆handle之后，启动fshost      
-use launchpad, to be looked ...
-    
-发送了几个设备的channel handle给\verb|fs_root|
-
 
 
 加载驱动的过程：
@@ -174,4 +255,5 @@ fuchsia_start()
 
 \end{verbatim}
 
-              
+应用打开设备：发送一个channel handle给devfs, devmgr将handle转发给devhost, 
+devhost将handle挂在自己的port上。
