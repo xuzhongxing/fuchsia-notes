@@ -74,7 +74,6 @@ __allocate_thread分配线程需要的内存
 
 argv = "/system/bin/appmgr"
 
-
 async::Loop loop(&kAsyncLoopConfigMakeDefault)
     async_loop_create(config, &loop_)
     
@@ -82,7 +81,7 @@ fs::SynchronousVfs vfs(loop.async())
     缺省构造函数
 
 component::RootLoader root_loader
-    一个服务，用的fidl接口
+    一个服务，用的fidl接口, 重载LoadComponent()
 
 directory->AddEntry(
     component::Loader::Name_, //"component.Loader"
@@ -91,6 +90,9 @@ directory->AddEntry(
             fidl::InterfaceRequest<component::Loader>(std::move(channel)));
         return ZX_OK;
     })));
+    让"component.Loader"对应到一个fs::Service上。Service是Vnode的一种。
+    Connector = fbl::Function<zx_status_t(zx::channel channel)>;
+
 
 vfs.ServeDirectory(directory, std::move(h2)
     请求应该是从h2进来
@@ -107,31 +109,159 @@ vfs.ServeDirectory(directory, std::move(h2)
                             zx_object_wait_async(
                                 wait->object, loop->port, (uintptr_t)wait, wait->trigger, ZX_WAIT_ASYNC_ONCE);
                             把前面那个h2挂到async loop的port上
+    h1交给Realm, 让Realm能够向component.Loader这个服务发送请求
+    接下来仔细看看Realm的构造
 
 component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
+    parent_是空
+    构造一个缺省的default_namespace_
+    Namespace(nullptr, this, nullptr)
+        services_.set_backend(std::move(services_backend));   ServiceProviderBridge
+
+        services_.AddService<Environment>(
+                    [this](fidl::InterfaceRequest<Environment> request) {
+                        environment_bindings_.AddBinding(this, std::move(request));
+                    });
+
+            AddServiceForName()
+                name_to_service_connector_[service_name] = std::move(connector);
+
+    构造RealmHub
+    vfs获取缺省的async
+
+
     zx::channel::create(0, &svc_channel_server_, &svc_channel_client_)
+        看看后面怎么用这个通道
+
     default_namespace_->services().set_backing_dir(std::move(host_directory))
-    default_namespace_->services().AddBinding(service_provider.NewRequest());
-        zx::channel::create(0, &h1, &h2) 
+        把通向"component.Loader"目录服务的通道赋值给ServiceProviderBridge的backing_dir_
+      
+    ServiceProviderPtr service_provider;
+        ServiceProviderPtr是InterfacePtr<ServiceProvider>
+    我们先看这个函数调用，
+    service_provider.NewRequest()
+        zx::channel::create(0, &h1, &h2)
+            创建一个通道，一头给Bind(),另一头作为提交请求的客户端返回
         Bind(std::move(h1), async) 
-        return InterfaceRequest<Interface>(std::move(h2));
+            impl_->controller.reader().Bind(std::move(channel), async)
+                impl里有ServiceProvider::Proxy_ 和  fidl::internal::ProxyController
+                ProxyController里的MessageReader reader_监听h1
+                wait_.object = channel_.get()
+                async_begin_wait(async_, &wait_)
 
-        ServiceProviderBridge::AddBinding
-            bindings_.AddBinding(this, std::move(request));
-                bindings_.push_back
+                controller收到消息会调用proxy_->Dispatch_()
+        h1这头的处理目前看好像是fidl生成的缺省代码
+        
+        return InterfaceRequest<ServiceProvider>(std::move(h2));
+            返回h2
 
-    loader_ = ConnectToService<Loader>(service_provider.get());
-        service_provider->ConnectToService(interface_name,
-                               interface_ptr.NewRequest().TakeChannel());
+    ServiceProviderBridge::AddBinding(h2)
+        bindings_.AddBinding(this, std::move(request))
+            this是ServiceProviderBridge自己 ImplPtr=ServiceProviderBridge*
+            Binding(impl, request)
+                Binding(std::forward<ImplPtr>(impl)
+                    impl_(std::forward<ImplPtr>(impl)), stub_(&*this->impl())
+                        stub_是ServiceProvider::Stub_，这个类的Dispatch_()会调用impl的ConnectToService(),
+                        也就是ServiceProviderBridge::ConnectToService()
+                controller_.reader().Bind(std::move(channel), async);
+                    应该是这里设置处理来自service_provider的请求
+            
+            bindings_.push_back()
+                binding的类型是这个::fidl::Binding<ServiceProvider, InterfaceRequest<ServiceProvider>>
 
-    这里没太看懂。应该是service_provider和Loader服务建立联系了。
-    default_namespace_->services()是ServiceProviderBridge，它继承了ServiceProvider
-    service_provider是InterfacePtr<ServiceProvider>
-    NewRequest()建立与ServiceProvider服务端的通道，返回之，存到bindings里面。
-    把与Loader的通道发送给ServiceProvider服务端。
+    建立了一个通道，一头让ServiceProvider::Proxy_处理，另一头给了ServiceProviderBridge添加binding
+
+    service_provider.get()
+        返回impl里的ServiceProvider::Proxy_     它继承了ServiceProvider
+        
+    下面这个ConnectToService的定义在connect.h里
+    loader_ = ConnectToService<Loader>(ServiceProvider::Proxy_)    模板类型是Loader, interface_name="component.Loader"
+        这里service_provider是ServiceProvider::Proxy_
+
+        InterfacePtr<Loader> interface_ptr
+        先看interface_ptr.NewRequest()
+            创建通道，一头h1是Loader::Proxy_缺省处理，另一头h2返回
+
+        service_provider->ConnectToService("component.Loader",h2)
+            这个函数是fidl生成的
+            controller_->Send
+            把h2发送给了ServiceProviderBridge，因为之前通道的另一头给了ServiceProviderBridge::AddBinding(h2)
+            ServiceProviderBridge::ConnectToService()会被调用，把h2发送给RootLoader::AddBinding监听起来
+            fdio_service_connect_at()
+                RootLoader::AddBinding
+
+            返回InterfacePtr<Loader>
+    上面这段代码的含义就是通过service_provider建立和Loader这个服务的联系
+    service_provider是个客户端，它被AddBinding到ServiceProviderBridge里。
+    ServiceProviderBridge本身是个服务，它的唯一的服务内容就是去ConnectToService()
 
 PublishRootDir(&root_realm, &publish_vfs);
+    request = zx_get_startup_handle(PA_DIRECTORY_REQUEST)
+    dir(fbl::AdoptRef(new fs::PseudoDir()
+    svc = fbl::AdoptRef(new fs::Service([root](zx::channel channel) {
+        return root->BindSvc(std::move(channel));
+    }));
+        碰到Serve请求会调用这个函数。
+        fdio_service_clone_to(root_realm->svc_channel_client_.get(),channel.release());
+            zxrio_connect(svc, srv, ZXRIO_CLONE, ZX_FS_RIGHT_READABLE |ZX_FS_RIGHT_WRITABLE, 0755, "");
+                把channel发送给svc
+        这里有点奇怪，svc_channel_client_的另一头要等到sysmgr调用CreateNestedEnvironment才会被监听
+
+
+    dir->AddEntry("hub", root->hub_dir());
+        hub_.dir()
+           dir_
+    dir->AddEntry("svc", svc);
+
+    vfs->ServeDirectory(dir, zx::channel(request));
     把从devmgr发来的通道挂到目录服务上
+
+run_sysmgr()
+  fuchsia::sys::LaunchInfo launch_info;
+    LaunchInfo是fidl生成的, launcher.fidl
+  sysmgr.NewRequest()    InterfacePtr<ComponentController>
+    Bind(std::move(h1), async)
+      impl_->controller.reader().Bind(std::move(channel), async);
+        wait_.object = channel_.get();
+        async_begin_wait(async_, &wait_)
+    ComponentController_Proxy缺省处理
+    返回另一头h2
+
+  root_realm.CreateComponent(std::move(launch_info),h2);
+    cb = lambda
+    loader_->LoadComponent(url, cb)
+        Loader_Proxy::LoadComponent()
+            把cb发送给root loader
+
+RootLoader::LoadComponent(fidl::StringPtr url,
+                        LoadComponentCallback callback)
+    CreateComponentWithProcess(
+                    std::move(package), std::move(launch_info),
+                    std::move(controller), std::move(ns));
+        CreateProcess(job_for_child_, std::move(executable), url,
+                    std::move(launch_info), zx::channel(), builder.Build());
+
+------------
+
+收到从sysmgr来的rpc:
+Namespace::CreateNestedEnvironment()
+    realm_->CreateNestedJob(std::move(host_directory), std::move(environment),
+                          std::move(controller), label);
+        host_directory是sysmgr开过来的通道
+
+        controller = EnvironmentControllerImpl(
+                                        std::move(controller_request),
+                                        std::make_unique<Realm>(this, std::move(host_directory), label));
+        child = controller->realm();
+            这是新建的child realm
+        child->default_namespace_->services().ServeDirectory(
+                std::move(root_realm->svc_channel_server_));
+            让子realm来服务svc_channel_server_
+            前面PublishRootDir把devmgr发来的通道发给了svc_channel_client_, 所以这里child realm会
+            服务devmgr的请求
+
+
+
 
 
 ------------------------------------------------------
@@ -176,23 +306,5 @@ static const async_ops_t async_loop_ops = {
         .set_guest_bell_trap = async_loop_set_guest_bell_trap,
     },
 };
-
-vfs.ServeDirectory(directory, std::move(h2)
-
-PublishRootDir(&root_realm, &publish_vfs);
-
-async::PostTask(async_t* async, fbl::Closure handler)
-    PostTaskForTime(async, static_cast<fbl::Closure&&>(handler),async::Now(async));
-        async_post_task(async, task);
-            async->ops->v1.post_task(async, task);
-
-root_realm.CreateApplication(std::move(launch_info), sysmgr.NewRequest());
-
-
-Classify出来的应该是kProcess
-CreateApplicationWithProcess(std::move(package), std::move(launch_info),
-                             std::move(controller), std::move(ns));
-zx::process process = CreateProcess(job_for_child_, std::move(executable), url,
-                                    std::move(launch_info), zx::channel(), builder.Build());
 
 \end{verbatim}

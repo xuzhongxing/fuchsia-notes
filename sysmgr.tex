@@ -31,6 +31,15 @@ async::Loop loop(&kAsyncLoopConfigMakeDefault);
 
 
 sysmgr::App app;
+RegisterSingleton()注册一个callback给目录服务，当有请求过来时，
+要做的事情是把发过来的请求channel handle交给相应的服务。具体如下。
+fuchsia::sys::Services services;
+dup_launch_info.directory_request = services.NewRequest();
+    这里生成一个通道。一端给Services留作directory_, 另一端发给服务进程。
+    这样就建立了Services到服务进程的通道。
+it->second.ConnectToService(std::move(client_handle), service_name);
+    这里会把请求通道handle通过Services的directory_发送给服务进程。
+
 
 zx::channel CreateStaticServiceRootHandle() {
   zx::channel h1, h2;
