@@ -1,1 +1,1 @@
-Some random notes about Zircon.
+Some random notes about Fuchsia.
