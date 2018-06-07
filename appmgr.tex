@@ -141,7 +141,7 @@ component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
     我们先看这个函数调用，
     service_provider.NewRequest()
         zx::channel::create(0, &h1, &h2)
-            创建一个通道，一头给Bind(),另一头作为提交请求的客户端返回
+            创建一个通道，一头给Bind(),另一头返回
         Bind(std::move(h1), async) 
             impl_->controller.reader().Bind(std::move(channel), async)
                 impl里有ServiceProvider::Proxy_ 和  fidl::internal::ProxyController
@@ -151,6 +151,7 @@ component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
 
                 controller收到消息会调用proxy_->Dispatch_()
         h1这头的处理目前看好像是fidl生成的缺省代码
+        service_provider应该是作为客户端，所以还不需要处理返回的消息
         
         return InterfaceRequest<ServiceProvider>(std::move(h2));
             返回h2
@@ -164,12 +165,13 @@ component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
                         stub_是ServiceProvider::Stub_，这个类的Dispatch_()会调用impl的ConnectToService(),
                         也就是ServiceProviderBridge::ConnectToService()
                 controller_.reader().Bind(std::move(channel), async);
-                    应该是这里设置处理来自service_provider的请求
+                    这里设置处理来自service_provider的请求
+                    把channel挂到事件循环上
             
             bindings_.push_back()
                 binding的类型是这个::fidl::Binding<ServiceProvider, InterfaceRequest<ServiceProvider>>
 
-    建立了一个通道，一头让ServiceProvider::Proxy_处理，另一头给了ServiceProviderBridge添加binding
+    建立了一个通道，一头让ServiceProvider::Proxy_处理，另一头给了ServiceProviderBridge添加binding，监听上
 
     service_provider.get()
         返回impl里的ServiceProvider::Proxy_     它继承了ServiceProvider
@@ -265,6 +267,7 @@ Namespace::CreateNestedEnvironment()
 
 
 ------------------------------------------------------
+
 
 下面这些结构用来模拟unix fd io
 

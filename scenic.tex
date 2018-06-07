@@ -1,9 +1,17 @@
 \section{scenic}
 
 \begin{verbatim}
+service_root通向"/svc/"
 
-ApplicationContext::ApplicationContext(zx::channel service_root,
-                                       zx::channel directory_request) {
+CreateStaticServiceRootHandle()
+    fdio_service_connect("/svc/.", h1.release())
+    fdio_ns_connect(fdio_root_ns, svcpath,
+                               ZX_FS_RIGHT_READABLE | ZX_FS_RIGHT_WRITABLE, h);
+
+        __libc_extensions_init里面会把fdio的各种handle设置好。
+        这样app就可以用fdio_ns_connect来获取channel了
+
+StartupContext::StartupContext(zx::channel service_root, zx::channel directory_request) {
   incoming_services_.Bind(std::move(service_root));
     directory_ = std::move(directory);
   
@@ -26,4 +34,55 @@ ApplicationContext::ApplicationContext(zx::channel service_root,
   incoming_services_.ConnectToService(launcher_.NewRequest());
 }
 
+App::App(fuchsia::sys::StartupContext* app_context, fit::closure quit_callback)
+    : scenic_(std::make_unique<Scenic>(app_context, std::move(quit_callback)))
+
+    app_context->outgoing().AddPublicService<fuchsia::ui::scenic::Scenic>(
+        [this](fidl::InterfaceRequest<fuchsia::ui::scenic::Scenic> request) {
+          FXL_VLOG(1) << "Accepting connection to Scenic";
+          scenic_bindings_.AddBinding(this, std::move(request));
+        });
+
+
+    scenic_->RegisterSystem<scenic::gfx::GfxSystem>()     // SystemT = scenic::gfx::GfxSystem
+        system = new GfxSystem(SystemContext(app_context_, quit_callback_.share())
+            display_manager_.WaitForDefaultDisplay(cb1)
+                display_watcher_.WaitForDisplay(cb2)
+                    device_watcher_ = fsl::DeviceWatcher::Create("/dev/class/display-controller", cb3)
+                        open("/dev/class/display-controller", O_DIRECTORY | O_RDONLY);
+                        zx_channel_create(0, &wd.channel, &dir_watch_handle)
+                        ioctl_vfs_watch_dir(dir_fd.get(), &wd)
+
+如果/dev/class/display-controller存在，调用DeviceWatcher::Handler
+DisplayWatcher::HandleDevice
+        dc_fd_ = std::move(fd);
+        dc_channel_ = dc_handle.get();
+        display_controller_.Bind(std::move(dc_handle));
+
+        // TODO(FIDL-183): Resolve this hack when synchronous interfaces
+        // support events.
+        auto dispatcher = static_cast<fuchsia::display::Controller::Proxy_*>(
+            event_dispatcher_.get());
+        dispatcher->DisplaysChanged = [this](auto added, auto removed) {
+          DisplaysChanged(std::move(added), std::move(removed));
+        };
+        dispatcher->ClientOwnershipChange = [this](auto change) {
+          ClientOwnershipChange(change);
+        };
+
+        wait_.set_object(dc_channel_);
+        wait_.set_trigger(ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED);
+        wait_.Begin(async_get_default());
+
+        display manager拿到dc_channel_
+
+
+先看一下scene_manager_vulkan_swapchain=2的情况
+Initialize()
+    escher::VulkanIsSupported()
+        CheckIfVulkanIsSupported()
+            CreateVulkanInstance()
+                vk::createInstance(&instance_info, nullptr, &instance)
+                    ::vkCreateInstance( pCreateInfo, pAllocator, pInstance);
+                        in file vulkan.hpp
 \end{verbatim}
