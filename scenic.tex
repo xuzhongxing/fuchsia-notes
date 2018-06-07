@@ -5,11 +5,12 @@ service_root通向"/svc/"
 
 CreateStaticServiceRootHandle()
     fdio_service_connect("/svc/.", h1.release())
-    fdio_ns_connect(fdio_root_ns, svcpath,
+      fdio_ns_connect(fdio_root_ns, svcpath,
                                ZX_FS_RIGHT_READABLE | ZX_FS_RIGHT_WRITABLE, h);
 
         __libc_extensions_init里面会把fdio的各种handle设置好。
         这样app就可以用fdio_ns_connect来获取channel了
+        如果root namespace里面没有"/svc/"，则这个进程不能访问这个名字
 
 StartupContext::StartupContext(zx::channel service_root, zx::channel directory_request) {
   incoming_services_.Bind(std::move(service_root));
