@@ -1,0 +1,52 @@
+\section{Vulkan}
+
+The LunarG SDK includes the official Khronos loader (libvulkan.so), which was
+developed by LunarG.
+
+On Linux, the loader detects the drivers via a JSON file that’s installed in
+some system paths. The JSON file indicates where the actual driver library is.
+There are also some environment variable overrides that you can use to point to
+a different location rather than a system location.
+
+目前看大致的框架是：
+
+app -> vulkan loader -> icd -> kernel/devhost driver
+
+vulkan loader里实现了各种vulkan api，会跳转到icd对应的接口去。
+
+vulkan loader是lunarg提供的
+
+icd是mesa的，应该被修改调用magma
+
+gpu驱动在garnet/drivers/gpu里面，叫做magma driver. 入口在driver_entry.cc里。
+
+zircon里还有vim display驱动，是管hdmi的。
+
+intel icd 部分
+入口函数都是自动生成的：
+\begin{verbatim}
+out/x64/x64-shared/gen/third_party/mesa/src/intel/vulkan/anv_entrypoints.c
+
+anv_lookup_entrypoint()用来查找api的入口。
+
+anv_device.c里面有icd的各种入口
+
+anv_gem.c是mesa原来的实现。fuchsia替换成了anv_magma.cc
+
+vulkan loader在创建实例的时候完成icd的扫描。
+
+trampoline.c: vkCreateInstance()
+  loader_icd_scan(ptr_instance, &ptr_instance->icd_tramp_list)   // loader.c
+    loader_scanned_icd_add(inst, icd_tramp_list, fullpath, vers)
+      fp_get_proc_addr = loader_platform_get_proc_address(handle, "vk_icdGetInstanceProcAddr");
+        return dlsym(library, name);
+      new_scanned_icd->CreateInstance = fp_create_inst;
+  loader_create_instance_chain(&ici, pAllocator, ptr_instance, &created_instance)
+    loader_gpa_instance_internal
+    terminator_CreateInstance
+      for ()
+        icd_result = ptr_instance->
+            icd_tramp_list.scanned_list[i].CreateInstance(&icd_create_info, 
+                                        pAllocator, &(icd_term->instance));
+
+\end{verbatim}

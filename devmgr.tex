@@ -133,16 +133,34 @@ create device, bind driver这2个rpc给devhost. devhost会处理这2个rpc. 对�
 的add device方法。这个方法主要是创建dc里对设备的代表，发布到devfs里。
 
 
-加载驱动的过程：
+寻找驱动的过程：
+
+初始入口是arm64: platform, x86: acpi
 
 dc进程：
 \begin{verbatim}
 coordinator()
   find_loadable_drivers()
-    di_read_driver_info()
-      found_driver()
-        dc_driver_added()
-          if dc_running  then queue WORK_DRIVER_ADDED  实际上dc_running == false
+    libname包含完整路径
+    di_read_driver_info(fd, libname, found_driver)
+      context ctx = {
+            .cookie = cookie,
+            .func = func,
+      };
+
+      for_each_note(&fd, di_pread,
+                         ZIRCON_NOTE_NAME, ZIRCON_NOTE_DRIVER,
+                         data, sizeof(data), callback, &ctx);
+          diread(obj, &eh, sizeof(eh), 0)
+            读elf header里的信息
+            找到elf里存的driver note信息
+            调用ctx->func(&dn->payload, binding, ctx->cookie)
+            也就是
+                found_driver()
+                    dc_driver_added()
+                        if dc_running  then queue WORK_DRIVER_ADDED  实际上dc_running == false
+                        list_add_tail(&list_drivers, &drv->node);
+                          把driver加到链表里
 
 process_work()
 WORK_DRIVER_ADDED:
@@ -167,7 +185,7 @@ WORK_DRIVER_ADDED:
           dh_connect_proxy()  把h0作为DC_OP_CONNECT_PROXY传过去
         dh_bind_driver()  向dh进程发送DC_OP_BIND_DRIVER消息。
 
-DC_OP_ADD_DEVICE:
+DC_OP_ADD_DEVICE:  这个OP是由devhost需要添加child device的时候发起的
   dc_add_device()
     创建子device, 把发来的hrpc设置好。监听。
     添加WORK_DEVICE_ADDED
