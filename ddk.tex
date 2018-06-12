@@ -48,7 +48,6 @@ kpci会match这个protocol id.
 
 
 i915的match需要BIND_PCI_DID
-这个只有kpci.c: pci_init_child()才会设置。但是目前zx_pci_get_nth_device()
-没有实现。还需要到实际硬件上看一下i915如何加载。
+这个只有kpci.c: pci_init_child()才会设置。
 
 \end{verbatim}
