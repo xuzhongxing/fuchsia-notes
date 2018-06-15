@@ -56,14 +56,13 @@ case WORK_DEVICE_ADDED:
       dc_attempt_bind(drv, dev);
         dc_prepare_proxy(dev)
           dc_create_proxy(dev)
+            libname = "bus-pci.proxy.so"
           dc_new_devhost(devhostname, dev->host,&dev->proxy->host) 
             有自己的devhost进程
           dh_create_device(dev->proxy, dev->proxy->host, arg1, h1))
             zx_channel_create(0, handle, &hrpc)
-            msg.op = DC_OP_CREATE_DEVICE;
-          dh_connect_proxy(dev, h0)
-            这个函数调用了kpci devhost里的相关处理。监听了h0. 但是因为之前启动的是
-            ahci的devhost, 它没有create函数，所以h1是被忽略的。h0是一个没用的channel??
+            msg.op = DC_OP_CREATE_DEVICE
+            call proxy.c's create() api
 
         dh_bind_driver(dev->proxy, drv->libname);
           msg.op = DC_OP_BIND_DRIVER;
@@ -72,12 +71,7 @@ case WORK_DEVICE_ADDED:
 
 dev host:
 case DC_OP_CREATE_DEVICE:
-  iostate_t* newios = calloc(1, sizeof(iostate_t));
-  ahci没有create方法
-  newios->ph.handle = hin[0];
-  newios->ph.waitfor = ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED;
-  newios->ph.func = dh_handle_dc_rpc;
-  port_wait(&dh_port, &newios->ph)
+  
 
 
 dh_handle_dc_rpc()

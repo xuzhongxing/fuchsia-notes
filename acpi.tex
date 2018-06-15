@@ -26,6 +26,113 @@ dc_prepare_proxy(&sys_device);
   dc_new_devhost(devhostname, dev->host, &dev->proxy->host)
     dev->proxy->host 具备了与devhost进程通信的通道hrpc
 
+  dh_create_device(dev->proxy, dev->proxy->host, arg1, h1)
+    dev是sys_device, dev->proxy->host通向devhost, h1是bootdata_vmo, arg1指向dev->args逗号后面，这里是空
+    handle[0]: rpc通道
+    handle[1]: bus-acpi.so vmo
+    handle[2]: bootdata vmo
+    msg.op = DC_OP_CREATE_DEVICE;
 
+    zx_channel_write(dh->hrpc, 0, &msg, mlen, handle, hcount)
+      通过刚刚建立的rpc通道发送过去
+    
+    把新的rpc通道挂到dev->proxy上面
 
+  
+case DC_OP_ADD_DEVICE:
+  dc_add_device(dev, hin[0], &msg, name, args, data,
+                               msg.op == DC_OP_ADD_DEVICE_INVISIBLE))
+
+case WORK_DEVICE_ADDED:
+  dc_handle_new_device(dev);
+    dc_attempt_bind(drv, dev);
+      non-bus设备不用启动新的devhost   kpci是non bus设备
+      dh_bind_driver(dev, drv->libname);
+        引起devhost端的kpci.c:pci_init_child
+
+----
+
+devhost: device_host_main()
+启动阶段：
+devhost_io_init();
+  fd: 1,2->log output
+
+port_wait(&dh_port, &root_ios.ph)
+  建立最初的通道：dev->proxy->host->hrpc  <=>   root_ios.ph.handle
+
+port_dispatch(&dh_port, ZX_TIME_INFINITE, false)
+  监听port
+
+----
+
+case DC_OP_CREATE_DEVICE:
+  
+  dh_find_driver(name, hin[1], &drv)
+  zx_device_t parent = {
+    .name = "device_create dummy",
+  };
+
+  creation_context_t ctx = {
+      .parent = &parent,
+      .child = NULL,
+      .rpc = hin[0],
+  };
+  devhost_set_creation_context(&ctx);
+  r = drv->ops->create(drv->ctx, &parent, "proxy", args, hin[2]);   drv->ctx == null
+  acpi_drv_create(void* ctx, zx_device_t* parent, const char* name,
+                                   const char* _args, zx_handle_t zbi_vmo)
+    init()
+    install_powerbtn_handlers();
+    pci_report_current_resources(get_root_resource());
+
+    device_add_args_t args = {
+        .version = DEVICE_ADD_ARGS_VERSION,
+        .name = name,
+        .ops = &sys_device_proto,
+        .flags = DEVICE_ADD_NON_BINDABLE,
+    };
+
+    device_add(parent, &args, &sys_root);
+      device_add_from_driver(__zircon_driver_rec__.driver, parent, args, out)
+        devhost_device_create(drv, parent, args->name, args->ctx, args->ops, &dev);
+        devhost_device_add(dev, parent, args->props, args->prop_count, NULL);
+          dev->flags |= DEV_FLAG_ADDED;
+          dev->flags &= (~DEV_FLAG_BUSY);
+          dev->rpc = ctx->rpc;
+          ctx->child = dev;
+          return ZX_OK;
+
+    device_add_args_t args2 = {
+        .version = DEVICE_ADD_ARGS_VERSION,
+        .name = "acpi",
+        .ops = &acpi_root_device_proto,
+        .flags = DEVICE_ADD_NON_BINDABLE,
+    };
+
+    acpi_root = NULL;
+    device_add(sys_root, &args2, &acpi_root);
+      device_add_from_driver(__zircon_driver_rec__.driver, parent, args, out)
+        devhost_device_create(drv, parent, args->name, args->ctx, args->ops, &dev);
+        devhost_device_add(dev, parent, args->props, args->prop_count, NULL);
+          devhost_add(parent, dev, proxy_args, props, prop_count);
+            msg.op = DC_OP_ADD_DEVICE;
+
+            "acpi"设备创建了, protocol id == 0
+
+    publish_acpi_devices(acpi_root);
+
+      publish_acpi_device_ctx_t ctx = {
+          .parent = parent,
+          .found_pci = false,
+          .last_pci = -1,
+      };
+      AcpiWalkNamespace(ACPI_TYPE_DEVICE,
+                                                  ACPI_ROOT_OBJECT,
+                                                  MAX_NAMESPACE_DEPTH,
+                                                  acpi_ns_walk_callback,
+                                                  NULL, &ctx, NULL);
+        publish_device(parent, object, info, "pci",
+                    ZX_PROTOCOL_PCIROOT, &pciroot_proto);
+          device_add()
+            "pci root"设备创建了
 \end{verbatim}
