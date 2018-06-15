@@ -1,13 +1,90 @@
 \section{ahci driver}
 
 \begin{verbatim}
+在此之前：
 
-acpi_root的来历：
-device_add(sys_root, &args2, &acpi_root)
+kpci.c:  (dev host)
+pci_drv_bind()
+  pci_init_child(parent, index)
+    zx_pci_get_nth_device()
+    device = calloc(1, sizeof(kpci_device_t));
+    device_add_args_t args = {
+        .version = DEVICE_ADD_ARGS_VERSION,
+        .name = name,
+        .ctx = device,
+        .ops = &pci_device_proto,
+        .proto_id = ZX_PROTOCOL_PCI,
+        .props = device_props,
+        .prop_count = countof(device_props),
+        .proxy_args = argstr,
+        .flags = DEVICE_ADD_MUST_ISOLATE,
+    };
+    device_add(parent, &args, &device->zxdev);
+      device_add_from_driver(__zircon_driver_rec__.driver, parent, args, out)
+        devhost_device_create(drv, parent, args->name, args->ctx, args->ops, &dev);
+          zx_device_t* dev = malloc(sizeof(zx_device_t));
+        devhost_device_add(dev, parent, args->props, args->prop_count, args->proxy_args);
+          devhost_add(parent, dev, proxy_args, props, prop_count);
+            iostate_t* ios = calloc(1, sizeof(*ios));
+            msg.op = (child->flags & DEV_FLAG_INVISIBLE) ? DC_OP_ADD_DEVICE_INVISIBLE : DC_OP_ADD_DEVICE;
+            zx_channel_create(0, &hrpc, &hsend)
+            dc_msg_rpc(parent->rpc, &msg, msglen, &hsend, 1, &rsp, sizeof(rsp), NULL, NULL)
+
+dev coordinator:
+dc_add_device(dev, hin[0], &msg, name, args, data,
+                               msg.op == DC_OP_ADD_DEVICE_INVISIBLE))
+  dev->hrpc = hrpc;
+  dev->prop_count = msg->datalen / sizeof(zx_device_prop_t);
+  dev->protocol_id = msg->protocol_id;
+  dev->host = parent->host;
+  dev->parent = parent;
+
+  devfs_publish(parent, dev)
+    devfs_mknode(dev, dev->name, 0);
+    
+  dev->ph.handle = hrpc;
+  dev->ph.waitfor = ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED;
+  dev->ph.func = dc_handle_device;
+  port_wait(&dc_port, &dev->ph)
+
+  queue_work(&dev->work, WORK_DEVICE_ADDED, 0)
+
+case WORK_DEVICE_ADDED:
+  dc_handle_new_device(dev);
+    dc_is_bindable(drv, dev->protocol_id,
+                           dev->props, dev->prop_count, true))
+      dc_attempt_bind(drv, dev);
+        dc_prepare_proxy(dev)
+          dc_create_proxy(dev)
+          dc_new_devhost(devhostname, dev->host,&dev->proxy->host) 
+            有自己的devhost进程
+          dh_create_device(dev->proxy, dev->proxy->host, arg1, h1))
+            zx_channel_create(0, handle, &hrpc)
+            msg.op = DC_OP_CREATE_DEVICE;
+          dh_connect_proxy(dev, h0)
+            这个函数调用了kpci devhost里的相关处理。监听了h0. 但是因为之前启动的是
+            ahci的devhost, 它没有create函数，所以h1是被忽略的。h0是一个没用的channel??
+
+        dh_bind_driver(dev->proxy, drv->libname);
+          msg.op = DC_OP_BIND_DRIVER;
+          zx_channel_write(dev->hrpc, 0, &msg, mlen, &vmo, 1)
 
 
+dev host:
+case DC_OP_CREATE_DEVICE:
+  iostate_t* newios = calloc(1, sizeof(iostate_t));
+  ahci没有create方法
+  newios->ph.handle = hin[0];
+  newios->ph.waitfor = ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED;
+  newios->ph.func = dh_handle_dc_rpc;
+  port_wait(&dh_port, &newios->ph)
+
+
+dh_handle_dc_rpc()
+  dh_handle_rpc_read(ph->handle, ios)
+case DC_OP_BIND_DRIVER:
 ahci_bind()
-  dev是父设备，是pci_init_child()里创建的设备
+  dev是父设备，是kpci.c: pci_init_child()里创建的设备
   device_get_protocol(dev, ZX_PROTOCOL_PCI, &device->pci)
     dev->ctx是kpci_device_t
     dev->ops是pci_device_proto

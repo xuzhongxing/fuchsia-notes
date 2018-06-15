@@ -1,0 +1,31 @@
+\section{acpi}
+
+\begin{verbatim}
+coordinator(void):
+static device_t sys_device = {
+    .parent = &root_device,
+    .flags = DEV_CTX_IMMORTAL | DEV_CTX_MUST_ISOLATE,
+    .name = "sys",
+    .libname = "",
+    .args = "sys,",
+    .children = LIST_INITIAL_VALUE(sys_device.children),
+    .pending = LIST_INITIAL_VALUE(sys_device.pending),
+    .metadata = LIST_INITIAL_VALUE(sys_device.metadata),
+    .refcount = 1,
+};
+sys_device.libname = "/boot/driver/bus-acpi.so";
+dc_prepare_proxy(&sys_device);   
+  dc_create_proxy(dev) 
+    parent->proxy = dev;
+
+  need_proxy_rpc = false
+
+  h1 = bootdata_vmo;
+
+
+  dc_new_devhost(devhostname, dev->host, &dev->proxy->host)
+    dev->proxy->host 具备了与devhost进程通信的通道hrpc
+
+
+
+\end{verbatim}
