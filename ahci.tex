@@ -1,0 +1,15 @@
+\section{ahci driver}
+
+\begin{verbatim}
+
+acpi_root的来历：
+device_add(sys_root, &args2, &acpi_root)
+
+
+ahci_bind()
+  dev是父设备，是pci_init_child()里创建的设备
+  device_get_protocol(dev, ZX_PROTOCOL_PCI, &device->pci)
+    dev->ctx是kpci_device_t
+    dev->ops是pci_device_proto
+  
+\end{verbatim}

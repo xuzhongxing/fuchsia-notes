@@ -43,11 +43,9 @@ dc_is_bindable(drv, dev->protocol_id,dev->props, dev->prop_count, true)
 acpi 会导致kpci被bind, 因为acpi protocol id 是ZX_PROTOCOL_PCIROOT.
 kpci会match这个protocol id.
 
-一个驱动发布设备时，会指定protocol id, 如果别的驱动匹配这个protocol id, 则
-会加载该驱动。
+一个驱动发布设备时，会指定protocol id, 如果别的驱动匹配这个protocol id, 则会加载该驱动。
 
-
-i915的match需要BIND_PCI_DID
-这个只有kpci.c: pci_init_child()才会设置。
-
+i915的match需要BIND_PCI_DID。这个只有kpci.c: pci_init_child()才会设置。
 \end{verbatim}
+
+
