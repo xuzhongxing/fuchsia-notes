@@ -2,6 +2,11 @@
 
 \begin{verbatim}
 在此之前：
+kpci会让dc创建一个pci设备，这个pci设备是isolated, 
+所以会在dc端创建一个proxy设备，这个proxy设备
+会启动一个新的devhost进程，使用pci.proxy.so
+然后dh_bind_driver会加载正式的ahci驱动，这个驱动运行于上面的新dh进程里。创建一个新的
+设备在dc端。
 
 kpci.c:  (dev host)
 pci_drv_bind()
@@ -72,15 +77,8 @@ case WORK_DEVICE_ADDED:
 dev host:
 case DC_OP_CREATE_DEVICE:
   
-
-
-dh_handle_dc_rpc()
-  dh_handle_rpc_read(ph->handle, ios)
 case DC_OP_BIND_DRIVER:
 ahci_bind()
-  dev是父设备，是kpci.c: pci_init_child()里创建的设备
-  device_get_protocol(dev, ZX_PROTOCOL_PCI, &device->pci)
-    dev->ctx是kpci_device_t
-    dev->ops是pci_device_proto
+  dev是父设备，是proxy设备，是独立的devhost进程
   
 \end{verbatim}

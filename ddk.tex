@@ -1,5 +1,15 @@
 \section{DDK}
 
+dc_create_proxy()里有一个重要操作就是将原来的驱动变成proxy.so驱动。
+
+只有创建新devhost进程的驱动才有create()方法，创建一个proxy设备。
+devhost proxy设备的add_device不会回到dc里。直接在devhost_device_add握手结束。
+
+
+sys -> kpci -> achi 设备关系示意图
+
+\includegraphics[scale=0.3]{devdrv.jpeg}
+
 \begin{verbatim}
 ZIRCON_DRIVER_BEGIN会定义
 __zircon_driver_rec__ {
