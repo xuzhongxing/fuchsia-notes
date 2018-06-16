@@ -5,6 +5,9 @@ dc_create_proxy()里有一个重要操作就是将原来的驱动变成proxy.so�
 只有创建新devhost进程的驱动才有create()方法，创建一个proxy设备。
 devhost proxy设备的add_device不会回到dc里。直接在devhost_device_add握手结束。
 
+对于acpi kpci, create方法用add_device("kpci"), 是非独立设备，
+直接找drv->libname. 对于独立设备，用kpci发现该设备，回到dc，创建pci proxy进程
+proxy的create()方法创建dh端设备。然后dh_bind_driver再加载真正的驱动。
 
 sys -> kpci -> achi 设备关系示意图
 
