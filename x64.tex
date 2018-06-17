@@ -1,0 +1,28 @@
+\section{x64 boot}
+
+.global makes the symbol visible to ld. If you define symbol in your partial
+program, its value is made available to other partial programs that are linked
+with it. Otherwise, symbol takes its attributes from a symbol of the same name
+from another file linked into the same program. 
+
+ The directive sets the visibility to hidden which means that the symbols are
+ not visible to other components.
+
+ \begin{verbatim}
+
+qemu-system-x86_64 -m 2048 -nographic -net none -smp 4,threads=2 
+  -machine q35 -kernel /home/xzx/zircon/build-x64/zircon.bin 
+  -device isa-debug-exit,iobase=0xf4,iosize=0x04 
+  -cpu Haswell,+smap,-check,-fsgsbase 
+  -initrd /home/xzx/zircon/build-x64/bootdata.bin 
+  -append 'kernel.serial=legacy TERM=xterm-256color 
+  kernel.entropy-mixin=9b158397dbade73e8784d4e783af93847ebb1d1be402fa73d53b0e2113e68200 
+  kernel.halt-on-panic=true '
+
+zircon.bin:
+
+x86_64-elf-objcopy -O binary build-x64/zircon-image.elf build-x64/zircon.bin
+
+zircon-image.elf:
+
+ \end{verbatim}
