@@ -5,10 +5,31 @@ program, its value is made available to other partial programs that are linked
 with it. Otherwise, symbol takes its attributes from a symbol of the same name
 from another file linked into the same program. 
 
- The directive sets the visibility to hidden which means that the symbols are
- not visible to other components.
+The directive sets the visibility to hidden which means that the symbols are
+not visible to other components.
 
- \begin{verbatim}
+--build-id Request the creation of a .note.gnu.build-id ELF note section or a
+.buildid COFF section. The contents of the note are unique bits identifying this
+linked file.
+
+与arm64相比，x64 qemu没有shim，直接用的zircon.bin作为kernel.
+
+对于.o文件，一个symbol是符号表的一项。它的value是一个偏移量。最终到了exe文件里，这个value
+会被替换成最终的地址。
+
+\begin{verbatim}
+qemu x86会在内核文件的前8192字节遍历寻找MULTIBOOT MAGIC.  
+IMAGE_ELF_ENTRY 实际上没用。
+
+IMAGE_MULTIBOOT_ENTRY = _multiboot_start
+
+x64内核真正的入口是_multiboot_start
+
+
+KERNEL_BASE := 0xffffffff00000000
+__code_start = KERNEL_BASE
+IMAGE_LOAD_START = __code_start
+IMAGE_ELF_ENTRY = _start
 
 qemu-system-x86_64 -m 2048 -nographic -net none -smp 4,threads=2 
   -machine q35 -kernel /home/xzx/zircon/build-x64/zircon.bin 
@@ -24,5 +45,260 @@ zircon.bin:
 x86_64-elf-objcopy -O binary build-x64/zircon-image.elf build-x64/zircon.bin
 
 zircon-image.elf:
+x86_64-elf-ld -nostdlib --build-id 
+  -z noexecstack 
+  -z max-page-size=4096 
+  --gc-sections 
+  --build-id=none \
+  -o build-x64/zircon-image.elf 
+  -T kernel/image.ld 
+  --just-symbols ./build-x64/zircon.elf
+  ./build-x64/kernel-vars.ld ./build-x64/zircon.image.o
 
- \end{verbatim}
+使用kernel/image.ld脚本构建最后的内核image
+
+zircon.image.o:
+LKNAME := zircon
+OUTLKELF := $(BUILDDIR)/$(LKNAME).elf
+OUTLKELF_RAW := $(OUTLKELF).bin
+KERNEL_IMAGE='"$(OUTLKELF_RAW)"'
+
+x86_64-elf-gcc   \
+    -O2 -g -fdebug-prefix-map=/home/xzx/zircon=. 
+    -finline 
+    -include ./build-x64/config-global.h 
+    -Wall -Wextra -Wno-multichar -Werror -Wno-error=deprecated-declarations 
+    -Wno-unused-parameter -Wno-unused-function -Werror=unused-label 
+    -Werror=return-type -fno-common -ffunction-sections 
+    -fdata-sections -Wno-nonnull-compare -march=x86-64 
+    -mcx16 -malign-data=abi -ffreestanding 
+    -include ./build-x64/config-kernel.h 
+    -Wformat=2 -Wvla -Wformat-signedness 
+    -fno-exceptions -fno-unwind-tables 
+    -fno-omit-frame-pointer -falign-jumps=1 
+    -falign-loops=1 -falign-functions=4 
+    -msoft-float -mno-mmx -mno-sse -mno-sse2 
+    -mno-3dnow -mno-avx -mno-avx2 -mno-80387 
+    -mno-fp-ret-in-387 -fPIE -include kernel/include/hidden.h 
+    -mno-red-zone -mskip-rax-setup 
+    -c kernel/arch/x86/image.S 
+    -MD -MP -MT build-x64/zircon.image.o -MF build-x64/zircon.image.d 
+    -o build-x64/zircon.image.o
+
+
+zircon.elf.bin:
+x86_64-elf-objcopy -O binary build-x64/zircon.elf build-x64/zircon.elf.bin
+
+
+zircon.elf:
+./prebuilt/downloads/gcc/bin/x86_64-elf-ld 
+  -nostdlib 
+  --build-id 
+  -z noexecstack 
+  -z max-page-size=4096 
+  --gc-sections  
+  --emit-relocs 
+  -T kernel/kernel.ld 
+  build-x64/kernel-vars.ld 
+  build-x64/kernel/target/pc/pc.mod.o 
+  build-x64/kernel/platform/pc/pc.mod.o 
+  build-x64/kernel/arch/x86/x86.mod.o 
+  build-x64/kernel/top/top.mod.o 
+  build-x64/kernel/arch/x86/page_tables/page_tables.mod.o 
+  build-x64/kernel/dev/intel_rng/intel_rng.mod.o 
+  build-x64/kernel/dev/interrupt/interrupt.mod.o 
+  build-x64/kernel/dev/iommu/dummy/dummy.mod.o 
+  build-x64/kernel/dev/iommu/intel/intel.mod.o 
+  build-x64/kernel/dev/pcie/pcie.mod.o 
+  build-x64/kernel/kernel/kernel.mod.o 
+  build-x64/kernel/lib/bitmap/bitmap.mod.o 
+  build-x64/kernel/lib/cbuf/cbuf.mod.o 
+  build-x64/kernel/lib/code_patching/code_patching.mod.o 
+  build-x64/kernel/lib/debugcommands/debugcommands.mod.o 
+  build-x64/kernel/lib/debuglog/debuglog.mod.o 
+  build-x64/kernel/lib/fbl/fbl.mod.o 
+  build-x64/kernel/lib/fixed_point/fixed_point.mod.o 
+  build-x64/kernel/lib/gfxconsole/gfxconsole.mod.o 
+  build-x64/kernel/lib/ktrace/ktrace.mod.o 
+  build-x64/kernel/lib/memory_limit/memory_limit.mod.o 
+  build-x64/kernel/lib/mtrace/mtrace.mod.o 
+  build-x64/kernel/lib/pow2_range_allocator/pow2_range_allocator.mod.o 
+  build-x64/kernel/lib/smbios/smbios.mod.o 
+  build-x64/kernel/lib/userboot/userboot.mod.o 
+  build-x64/kernel/lib/version/version.mod.o 
+  build-x64/kernel/lib/zbi/zbi.mod.o 
+  build-x64/kernel/object/object.mod.o 
+  build-x64/kernel/platform/platform.mod.o 
+  build-x64/kernel/syscalls/syscalls.mod.o 
+  build-x64/kernel/target/target.mod.o 
+  build-x64/kernel/tests/tests.mod.o 
+  build-x64/third_party/lib/acpica/acpica.mod.o 
+  build-x64/third_party/lib/cksum/cksum.mod.o 
+  build-x64/kernel/dev/hw_rng/hw_rng.mod.o 
+  build-x64/kernel/dev/udisplay/udisplay.mod.o 
+  build-x64/kernel/lib/console/console.mod.o 
+  build-x64/kernel/lib/counters/counters.mod.o 
+  build-x64/kernel/lib/crypto/crypto.mod.o 
+  build-x64/kernel/lib/debug/debug.mod.o 
+  build-x64/kernel/lib/explicit-memory/explicit-memory.mod.o 
+  build-x64/kernel/lib/gfx/gfx.mod.o 
+  build-x64/kernel/lib/header_tests/header_tests.mod.o 
+  build-x64/kernel/lib/heap/heap.mod.o 
+  build-x64/kernel/lib/hwreg/hwreg.mod.o 
+  build-x64/kernel/lib/hypervisor/hypervisor.mod.o 
+  build-x64/kernel/lib/libc/libc.mod.o 
+  build-x64/kernel/lib/oom/oom.mod.o 
+  build-x64/kernel/lib/pci/pci.mod.o 
+  build-x64/kernel/lib/region-alloc/region-alloc.mod.o 
+  build-x64/kernel/lib/unittest/unittest.mod.o 
+  build-x64/kernel/lib/user_copy/user_copy.mod.o 
+  build-x64/kernel/lib/vdso/vdso.mod.o 
+  build-x64/kernel/lib/zxcpp/zxcpp.mod.o 
+  build-x64/kernel/vm/vm.mod.o 
+  build-x64/kernel/arch/x86/hypervisor/hypervisor.mod.o 
+  build-x64/kernel/lib/heap/cmpctmalloc/cmpctmalloc.mod.o 
+  build-x64/kernel/lib/io/io.mod.o 
+  build-x64/kernel/lib/pretty/pretty.mod.o 
+  build-x64/third_party/lib/cryptolib/cryptolib.mod.o 
+  build-x64/third_party/lib/jitterentropy/jitterentropy.mod.o 
+  build-x64/third_party/lib/qrcodegen/qrcodegen.mod.o 
+  build-x64/third_party/lib/uboringssl/uboringssl.mod.o 
+  -o build-x64/zircon.elf
+
+*.o -> zircon.elf -> zircon.elf.bin + image.S -> zircon.image.o -> zircon-image.elf -> zircon.bin
+
+
+echo "INPUT(build-x64/kernel/arch/x86/kernel/arch/x86/bp_percpu.c.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/arch.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/cache.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/cpu_topology.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/debugger.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/descriptor.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/faults.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/feature.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/hwp.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/idt.cpp.o
+build-x64/kernel/arch/x86/kernel/arch/x86/ioapic.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/ioport.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/lapic.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/mmu.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/mmu_mem_types.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/mmu_tests.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/mp.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/perf_mon.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/proc_trace.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/pvclock.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/registers.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/thread.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/timer_freq.cpp.o
+build-x64/kernel/arch/x86/kernel/arch/x86/tsc.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/user_copy.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/bootstrap16.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/smp.cpp.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/acpi.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/asm.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/exceptions.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/gdt.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/mexec.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/ops.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/start.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/syscall.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/user_copy.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/uspace_entry.S.o 
+build-x64/kernel/arch/x86/kernel/arch/x86/start16.S.o)" 
+> build-x64/kernel/arch/x86/x86.mod.o
+
+
+\end{verbatim}
+
+\section{Intel 64架构}
+
+real mode => protected mode => IA-32e mode
+interrupt是硬件中断。exception是软件中断。
+
+idt: task, interrupt, trap
+
+
+\section{启动过程}
+
+
+\begin{verbatim}
+在qemu multiboot.S里
+movl		$MULTIBOOT_MAGIC, %eax
+
+在start.S里,
+cmpl $MULTIBOOT_BOOTLOADER_MAGIC, %eax
+
+load_phys_gdtr:
+加载GDT
+DATA_SELECTOR 作为各种selector
+
+mov $PHYS(_kstack_end), %esp  设置stack pointer
+
+打开paging
+
+_end是整个内核映像结束的位置。在kernel.ld里定义。
+
+mov $X86_MSR_IA32_GS_BASE, %ecx
+wrmsr
+把bp_percpu的地址写入%gs.base
+
+加载IDT
+
+x86_init_percpu
+  当前的percpu指向percpu结构. kernel gs msr清零。
+  之后swapgs会设置gs寄存器的值为kernel gs msr的值
+
+  x86_feature_init();
+    获得cpuid的各种信息
+
+  x86_cpu_topology_init()
+
+  x86_extended_register_init();
+    x86_extended_register_cpu_init();
+      x86_set_cr4(cr4 | X86_CR4_OSXSAVE);
+  x86_extended_register_enable_feature(X86_EXTENDED_REGISTER_SSE);
+  x86_extended_register_enable_feature(X86_EXTENDED_REGISTER_AVX);
+
+  // This can be turned on/off later by the user. Turn it on here so that
+  // the buffer size assumes it's on.
+  x86_extended_register_enable_feature(X86_EXTENDED_REGISTER_PT);
+  // But then set the default mode to off.
+  x86_set_extended_register_pt_state(false);
+
+  x86_initialize_percpu_tss();
+    每个cpu有一个缺省的tss
+    x86_tss_assign_ists(percpu, tss);
+    tss里目前看只用了ist
+    在遗产模式下，可以用task gate来获得中断执行的好的stack。但是64位模式不行，所以在tss里
+    提供多个ist，供不同的中断使用。
+
+  // Setup the post early boot IDT
+  idt_setup(&_idt);
+
+
+  设置syscall地址。
+
+
+
+\end{verbatim}
+
+\section{x64 中断处理}
+\begin{verbatim}
+x86_exception_handler(x86_iframe_t* frame)
+  int_handler_start(&state);
+    arch_set_in_int_handler(true);
+      WRITE_PERCPU_FIELD32(in_irq, value);
+      x86_write_gs_offset32(offsetof(struct x86_percpu, field), (value))
+         __asm__( "movl   %0, %%gs:%1" : : "ir" (val), "m" (*(uint32_t *)(offset)) : "memory");
+
+  is_from_user(frame);
+    SELECTOR_PL(frame->cs) != 0;
+
+  handle_exception_types(frame);
+
+  do_preempt = int_handler_finish(&state);
+
+
+
+\end{verbatim}
