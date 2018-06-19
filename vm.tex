@@ -1,4 +1,13 @@
 \section{虚拟内存管理}
+内核的页表都是在start.S里映射好的。
+
+在vm\_init()里会保留起来。
+
+kernel heap直接从物理内存拿页。因为内核页表是都映射好的，所以不用再次映射。
+
+内核另外一个用内存的地方是handle arena. 那个地方会申请物理页，然后commit.
+
+
 zircon的每个进程的页表对应的page是初始化process handle时创建的。页表地址
 会记录在aspace里面。
 

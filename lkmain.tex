@@ -28,9 +28,11 @@ lk_init_level()
   这次没有匹配的init函数可以被调用。（也许我漏掉了？）
 
 arch_early_init();
+x64:
   x86_mmu_early_init();
     x86_mmu_percpu_init();
-
+      设置cr0, cr4
+arm64:
   arch_curr_cpu_num_slow()返回0，因为这时arm64_cpu_map还没有初始化。
   arch.cpp: arm64_cpu_early_init()
   把x18指向当前cpu的percpu.
@@ -71,28 +73,135 @@ lk_primary_cpu_init_level(LK_INIT_LEVEL_PLATFORM_EARLY, LK_INIT_LEVEL_TARGET_EAR
   counters_init()
 
 target_early_init();
-  // empty
+  none
 
 lk_primary_cpu_init_level(LK_INIT_LEVEL_TARGET_EARLY, LK_INIT_LEVEL_VM_PREHEAP - 1);
   crypto::GlobalPRNG::EarlyBootSeed
 
 vm_init_preheap();
   VmAspace::KernelAspaceInitPreHeap();
+    static VmAspace _kernel_aspace；
+    static VmAddressRegionDummy dummy_vmar;
+    static VmAddressRegion _kernel_root_vmar(_kernel_aspace);
+    _kernel_aspace.root_vmar_ = fbl::AdoptRef(&_kernel_root_vmar);
+    _kernel_aspace.Init();
+      arch_aspace_.Init(base_, size_, arch_aspace_flags);
+      X86ArchVmAspace::Init(vaddr_t base, size_t size, uint mmu_flags)
+        mmu = new (page_table_storage_) X86PageTableMmu();
+        mmu->InitKernel(this);
+          ctx_ = ctx;   X86ArchVmAspace
+          pages_ = 1;
+          使用start.S里设置的页表
 
+  mark the physical pages used by the boot time allocator
+  grab a page and mark it as the zero page
 
+lk_primary_cpu_init_level(LK_INIT_LEVEL_VM_PREHEAP, LK_INIT_LEVEL_HEAP - 1);
+  none
 
+heap_init();
+  cmpct_init();
+    heap_grow(initial_alloc);
+      heap_page_alloc(size >> PAGE_SIZE_SHIFT);
+        pmm_alloc_contiguous(pages, 0, PAGE_SIZE_SHIFT, &pa, &list);
+          分配物理页给内核堆
 
+lk_primary_cpu_init_level(LK_INIT_LEVEL_HEAP, LK_INIT_LEVEL_VM - 1);
+  console_init()
+    init_history();
+      history = calloc(1, HISTORY_LEN * LINE_LEN);
+      history_next = 0;
 
+vm_init();
+  ProtectRegion(aspace, region->base, region->arch_mmu_flags);
+    vm_mapping->Protect(vm_mapping->base(), vm_mapping->size(), arch_mmu_flags);
+      ProtectLocked(base, size, new_arch_mmu_flags);
+        ProtectOrUnmap(aspace_, base, size, new_arch_mmu_flags);
+          aspace->arch_aspace().Protect(base, size / PAGE_SIZE, new_arch_mmu_flags);
+            pt_->ProtectPages(vaddr, count, mmu_flags);
+              UpdateMapping(virt_, mmu_flags, top_level(), start, &result, &cm);
+  aspace->ReserveSpace("physmap", PHYSMAP_SIZE, PHYSMAP_BASE);
+    保留一部分虚拟地址区域，对应于一些有用的物理地址。x86是64gb, arm64是512gb
+    // The kernel physmap is a region of the kernel where all of useful physical memory
+    // is mapped in one large chunk. It's up to the individual architecture to decide
+    // how much to map but it's usually a fairly large chunk at the base of the kernel
+    // address space.
+    目的是一些需要用到物理地址的情况，比如设备内存映射，可以直接在虚拟地址和物理地址之间建立关系。
+    kernel heap也是利用这个映射区域。
+    内核自己要用的其他虚拟内存，比如后面的Handle arena，都在这个区域之后映射。
+    之所以Handle arena不用physmap, 是因为它用了vmo lazy commit, 用了vmo就无法用physmap.
+    而kernel heap不需要用vmo来back up它。
 
+    trim_to_aspace(*this, vaddr, size);
+      检查溢出的情况
+    VmObjectPaged::Create(PMM_ALLOC_FLAG_ANY, 0, &vmo);  
+      创建一个长度为0的vmo
 
+    MapObjectInternal(fbl::move(vmo), name, 0, size, &ptr, 0, VMM_FLAG_VALLOC_SPECIFIC,
+      arch_mmu_flags);
+      offset = 0, size = 64gb, ptr = KERNEL_BASE
 
+      vmar_offset = reinterpret_cast<vaddr_t>(*ptr);
+      vmar_offset -= base_; // 0
+      RootVmar()->CreateVmMapping(vmar_offset, size, align_pow2,
+                                                     vmar_flags,
+                                                     vmo, offset, arch_mmu_flags, name, &r);
+      CreateSubVmarInternal(mapping_offset, size, align_pow2, vmar_flags, fbl::move(vmo),
+                                                     vmo_offset, arch_mmu_flags, name, &res);
+      vmar = fbl::AdoptRef(new (&ac) VmMapping(*this, new_base, size, vmar_flags,
+                                                fbl::move(vmo), vmo_offset, arch_mmu_flags));
+      
+      vmar->Activate();
+        parent_->subregions_.insert(fbl::RefPtr<VmAddressRegionOrMapping>(this));
+      
+      
+      no commit.
 
+lk_primary_cpu_init_level(LK_INIT_LEVEL_VM, LK_INIT_LEVEL_KERNEL - 1);
+  initialize ACPI tables as soon as we have a working VM
+  platform_init_acpi_tables(uint level)
+    This function enables *only* the ACPICA Table Manager subsystem.
+    The rest of the ACPI subsystem will remain uninitialized.
 
+    AcpiInitializeTables(acpi_tables, ACPI_MAX_INIT_TABLES, FALSE);
 
+  
+  Begin running after ACPI tables are up
+  hpet_init(uint level)
 
+  platform_init_apic(uint level)
 
+lk_primary_cpu_init_level(LK_INIT_LEVEL_THREADING, LK_INIT_LEVEL_ARCH - 1);
+  object_glue_init(uint level)
+    Handle::Init();
+      arena_.Init("handles", sizeof(Handle), kMaxHandleCount);
+        VmObjectPaged::Create(PMM_ALLOC_FLAG_ANY, vmo_sz, &vmo);
+          root_vmar->CreateSubVmar(0, // offset (ignored)
+              vmar_sz,
+              false, // align_pow2
+              VMAR_FLAG_CAN_MAP_READ |
+                  VMAR_FLAG_CAN_MAP_WRITE |
+                  VMAR_FLAG_CAN_MAP_SPECIFIC,
+              vname, &vmar);
 
+              AllocSpotLocked(size, align_pow2, arch_mmu_flags, &new_base);
+                LinearRegionAllocatorLocked(size, align_pow2, arch_mmu_flags, spot);
+                  CheckGapLocked(before_iter, after_iter, spot, base, align, size, 0, arch_mmu_flags)
+    arena映射的是之前kernel root_vmar保留区域之后的区域。
+          vmar->CreateVmMapping(0, // mapping_offset
+                               control_mem_sz,
+                               false, // align_pow2
+                               VMAR_FLAG_SPECIFIC,
+                               vmo,
+                               0, // vmo_offset
+                               ARCH_MMU_FLAG_PERM_READ |
+                                   ARCH_MMU_FLAG_PERM_WRITE,
+                               "control", &control_mapping);
 
+arch_init();
+
+-----------
+以下是老内容。
 
 bootdata_paddr存放的是initrd的加载地址0x48000000。boot-shim会把从device tree
 中读出来的initrd的加载地址写入bootdata_paddr。此外，qemu会把内核加载到0x40080000处。
@@ -129,7 +238,8 @@ platform_early_init()结束。
 
 进入heap_init()，把内核要使用的heap page申请出来。
 
-进入vm_init()。为内核占用的虚拟地址区域创建VmObject. VmMapping好像只是记录一个vmo有哪些flags. 在创建VmMapping之后，
+进入vm_init()。为内核占用的虚拟地址区域创建VmObject. VmMapping好像只是记录一个vmo有哪些flags. 
+在创建VmMapping之后，
 Activate()的时候才把它插到parent，也就是RootVmar的ChildList里面。
 
 platform_init_postvm()把外围设备的虚拟地址保留起来。

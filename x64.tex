@@ -236,6 +236,8 @@ DATA_SELECTOR 作为各种selector
 mov $PHYS(_kstack_end), %esp  设置stack pointer
 
 打开paging
+Preparing 64 bit paging, we will use 2MB pages covering 1GB
+for initial bootstrap, this page table will be 1 to 1
 
 _end是整个内核映像结束的位置。在kernel.ld里定义。
 
