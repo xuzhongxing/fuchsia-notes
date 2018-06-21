@@ -1,0 +1,28 @@
+\section{中断处理}
+
+中断本身是一个能够等待的对象。它的handler很简单，就是唤醒等待的线程。
+
+在处理ISA的传统中断号时，需要让系统检查它是否被remap过。得到global irq.
+\begin{verbatim}
+InterruptEventDispatcher::Create
+  vector = remap_interrupt(vector);
+
+  disp->RegisterInterruptHandler();
+    register_int_handler(vector_, IrqHandler, this);
+
+zx_interrupt_wait(device->irq, NULL);
+  interrupt->WaitForInterrupt(&timestamp);
+    event_wait_deadline(&event_, ZX_TIME_INFINITE, true);
+      event_wait_worker(e, deadline, interruptable, 0);
+        current_thread = get_current_thread();
+          wait_queue_block_with_mask(&e->wait, deadline, signal_mask);
+
+handler:
+InterruptEventDispatcher::IrqHandler(void* ctx)
+  thiz->InterruptHandler();
+    Signal();
+      event_signal_etc(&event_, true, ZX_OK);
+        event_signal_internal(e, reschedule, wait_result, false);
+          wait_queue_wake_all(&e->wait, reschedule, wait_result);
+
+\end{verbatim}

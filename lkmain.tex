@@ -46,6 +46,11 @@ platform_early_init()
 x64:
   pc_init_debug_default_early();
   platform_save_bootloader_data();
+    multiboot_info_t* mi = (multiboot_info_t*)X86_PHYS_TO_VIRT(_multiboot_info);
+    process_zbi(reinterpret_cast<zbi_header_t*>(X86_PHYS_TO_VIRT(mod->mod_start)),mod->mod_start);
+      process_zbi_item()
+        bootloader会把efi mem map信息放到ramdisk的前面: bootloader/src/zircon.c
+
   pc_init_debug_early();
     handle_serial_cmdline()
       bootloader.uart.type = ZBI_UART_PC_PORT;
@@ -60,9 +65,16 @@ x64:
 
   pc_mem_init();
     platform_mem_range_init()
+      efi_range_init(&range, &efi_seq);
+        mem_arena_init(&range);
+          这里通过UEFI提供的信息初始化物理内存区域。具体参见UEFI标准和bootloader传递memory map
+          信息的代码。
+
+        
     efi_range_init(&range, &efi_seq)
     e820_range_init(&range, &e820_seq)
     multiboot_range_init(&range, &multiboot_seq)
+      这里会把内存区域信息存一份。后面x86_pcie_init_hook()会用到
 
   boot_reserve_wire();
     pmm_alloc_range(res[i].pa, pages, &reserved_page_list);
@@ -93,8 +105,9 @@ vm_init_preheap();
           pages_ = 1;
           使用start.S里设置的页表
 
-  mark the physical pages used by the boot time allocator
-  grab a page and mark it as the zero page
+  // mark the physical pages used by the boot time allocator
+
+  // grab a page and mark it as the zero page
 
 lk_primary_cpu_init_level(LK_INIT_LEVEL_VM_PREHEAP, LK_INIT_LEVEL_HEAP - 1);
   none
@@ -105,6 +118,7 @@ heap_init();
       heap_page_alloc(size >> PAGE_SIZE_SHIFT);
         pmm_alloc_contiguous(pages, 0, PAGE_SIZE_SHIFT, &pa, &list);
           分配物理页给内核堆
+          问题：如何保证分配的物理页不和之后的设备的mmio的地址冲突？
 
 lk_primary_cpu_init_level(LK_INIT_LEVEL_HEAP, LK_INIT_LEVEL_VM - 1);
   console_init()
@@ -157,21 +171,72 @@ vm_init();
       
       no commit.
 
-lk_primary_cpu_init_level(LK_INIT_LEVEL_VM, LK_INIT_LEVEL_KERNEL - 1);
-  initialize ACPI tables as soon as we have a working VM
+lk_primary_cpu_init_level(LK_INIT_LEVEL_VM, LK_INIT_LEVEL_KERNEL - 1)
+  pmm_enforce_fill(uint level)
+    pmm_node.EnforceFill();
+      用0x42填充内存
+
+  platform_ensure_display_memtype
+
+
+  //initialize ACPI tables as soon as we have a working VM
   platform_init_acpi_tables(uint level)
     This function enables *only* the ACPICA Table Manager subsystem.
     The rest of the ACPI subsystem will remain uninitialized.
 
     AcpiInitializeTables(acpi_tables, ACPI_MAX_INIT_TABLES, FALSE);
-
+      acpi在拿到rsdp的物理地址后，会把它映射到一个新的虚拟地址上。
+      acpi table manager可以独立初始化
   
-  Begin running after ACPI tables are up
+  //Begin running after ACPI tables are up
   hpet_init(uint level)
+    为hept映射一个页的地址
 
   platform_init_apic(uint level)
+    通过设置LVT可以指定各种中断的向量号
+    把8259a关掉
+
+    platform_enumerate_io_apics(NULL, 0, &num_io_apics);
+      acpi_get_madt_record_limits(&records_start, &records_end);
+      获得ioapic的信息
+
+    apic_vm_init();
+      // Create a mapping for the page of MMIO registers
+    apic_local_init();
+      x2apic_enabled = true;
+      // Enter xAPIC or x2APIC mode and set the base address
+
+    apic_io_init(io_apics, num_io_apics, isos, num_isos);
+      为每个ioapic映射物理地址
+
+      global irq是系统给硬件配置的中断号，acpi会配置这个。
+      io apic会把global irq映射到x86 vector，一个新的中断号。这个中断号是cpu
+      看到的，调用哪个中断handler是根据这个中断号来的。
+
+      register_int_handler(unsigned int vector, int_handler handler, void* arg)
+      这个函数的逻辑是：vector是global irq, 先检查其对应的x86 vector是否合法，
+      如果不合法则分配一个新的x86 vector, 然后把handler配置到x86 vector上，
+      最后在io apic里配置global irq到x86 vector的重定向。
+
+  pc_init_timer(uint level)
+
+kernel_init();
+  mp_init();
+  thread_init();
+  timer_queue_init();
+  // nothing interesting
+
+lk_primary_cpu_init_level(LK_INIT_LEVEL_KERNEL, LK_INIT_LEVEL_THREADING - 1);
+  dlog_init_hook
+  thread_set_priority_experiment_init_hook
+  crypto::GlobalPRNG::BecomeThreadSafe
+
+bootstrap2 thread:
 
 lk_primary_cpu_init_level(LK_INIT_LEVEL_THREADING, LK_INIT_LEVEL_ARCH - 1);
+
+  dpc_init
+
   object_glue_init(uint level)
     Handle::Init();
       arena_.Init("handles", sizeof(Handle), kMaxHandleCount);
@@ -199,6 +264,46 @@ lk_primary_cpu_init_level(LK_INIT_LEVEL_THREADING, LK_INIT_LEVEL_ARCH - 1);
                                "control", &control_mapping);
 
 arch_init();
+  x86_feature_debug();
+
+  x86_mmu_init();
+
+  idt_setup_readonly();
+
+  x86_perfmon_init();
+  x86_processor_trace_init();
+
+  // nothing interesting
+
+lk_primary_cpu_init_level(LK_INIT_LEVEL_ARCH, LK_INIT_LEVEL_PLATFORM - 1);
+  // none
+
+platform_init();
+
+  platform_init_smp();
+    x86_init_smp(apic_ids.get(), num_cpus);
+      lk_init_secondary_cpus(num_cpus - 1);
+
+    x86_bringup_aps(apic_ids.get(), num_cpus - 1);
+      x86_bootstrap16_acquire((uintptr_t)_x86_secondary_cpu_long_mode_entry,
+                                     &bootstrap_aspace, (void**)&bootstrap_data,
+                                     &bootstrap_instr_ptr);
+      apic_send_ipi(vec, apic_id, DELIVERY_MODE_STARTUP);
+      // The effect is to set CS:IP to VV00:0000h
+      // AP 实模式的启动代码是之前扫描内存时选择的低于1MB的一个地方，启动数据在4kb之后。
+      // far return的时候，%esp指向bootstrap data里面的phys_long_mode_entry
+
+
+
+lk_primary_cpu_init_level(LK_INIT_LEVEL_PLATFORM, LK_INIT_LEVEL_TARGET - 1);
+  x86_pcie_init_hook()
+    PcieBusDriver::InitializeDriver(platform_pcie_support);
+
+      driver_ = fbl::AdoptRef(new (&ac) PcieBusDriver(platform));
+      driver_->AllocBookkeeping();
+
+target_init();
+lk_primary_cpu_init_level(LK_INIT_LEVEL_TARGET, LK_INIT_LEVEL_LAST);
 
 -----------
 以下是老内容。
