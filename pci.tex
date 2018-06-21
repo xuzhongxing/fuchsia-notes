@@ -1,0 +1,38 @@
+\section{pci}
+
+\begin{verbatim}
+acpi_drv_create()
+  get_pci_init_arg(&arg, &arg_size);
+    find_pcie_config(res);
+    find_pci_legacy_irq_mapping(res);
+
+  sys_pci_init()
+    首先处理legacy irq
+
+    bus_start == 0
+    pcie->AddEcamRegion(ecam);
+
+    PcieRootLUTSwizzle::Create(*pcie, 0, arg->dev_pin_to_global_irq);
+    pcie->AddRoot(fbl::move(root));
+    pcie->StartBusDriver();
+      root->ScanDownstream();
+        PcieUpstreamNode::ScanDownstream()
+          cfg = driver().GetConfig(managed_bus_id_, dev_id, func_id);
+
+
+kpci.c:
+pci_drv_bind(void* ctx, zx_device_t* parent)
+  ctx == null
+  pci_init_child(parent, index)
+    zx_pci_get_nth_device(get_root_resource(), index, &info, &handle);
+    sys_pci_get_nth_device(zx_handle_t hrsrc,
+                                   uint32_t index,
+                                   user_out_ptr<zx_pcie_device_info_t> out_info,
+                                   user_out_handle* out_handle)
+      PciDeviceDispatcher::Create(index, &info, &dispatcher, &rights);
+        bus_drv->GetNthDevice(index);
+          PcieBusDriver::ForeachDevice(ForeachDeviceCallback cbk, void* ctx)
+            ForeachRoot(ForeachRootCallback cbk, void* ctx)
+
+
+\end{verbatim}

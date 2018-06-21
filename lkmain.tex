@@ -298,9 +298,22 @@ platform_init();
 lk_primary_cpu_init_level(LK_INIT_LEVEL_PLATFORM, LK_INIT_LEVEL_TARGET - 1);
   x86_pcie_init_hook()
     PcieBusDriver::InitializeDriver(platform_pcie_support);
-
       driver_ = fbl::AdoptRef(new (&ac) PcieBusDriver(platform));
       driver_->AllocBookkeeping();
+
+    pcie = PcieBusDriver::GetDriver();
+      return driver_;
+
+    constexpr uint64_t pcie_pio_base = 0x8000;
+    constexpr uint64_t pcie_pio_size = 0x10000 - pcie_pio_base;
+  
+    pcie->AddBusRegion(pcie_pio_base, pcie_pio_size, PciAddrSpace::PIO);
+
+    pcie->AddBusRegion(pcie_mmio_base, pcie_mmio_size, PciAddrSpace::MMIO);
+      RegionAllocator::AddRegion(const ralloc_region_t& region, bool allow_overlap) {
+
+    然后去掉那些已经被其他设备占用的物理地址范围，包括物理内存。结束。
+
 
 target_init();
 lk_primary_cpu_init_level(LK_INIT_LEVEL_TARGET, LK_INIT_LEVEL_LAST);
