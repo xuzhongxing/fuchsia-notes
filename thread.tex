@@ -91,10 +91,10 @@ __libc_start_main(void* arg, int (*main)(int, char**, char**))
     __zircon_vmar_root_self;
     __zircon_job_default;
 
-
   start_main(const struct start_params* p)
     __libc_extensions_init(p->nhandles, p->handles, p->handle_info,
                                p->namec, p->names);
+      会把所有的name对应的handle拿出来，创建fdio root namespace.
     __libc_startup_handles_init(p->nhandles, p->handles, p->handle_info);
 
     // Run static constructors et al.
