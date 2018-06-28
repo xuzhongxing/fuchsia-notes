@@ -135,12 +135,14 @@ vm_init();
             pt_->ProtectPages(vaddr, count, mmu_flags);
               UpdateMapping(virt_, mmu_flags, top_level(), start, &result, &cm);
   aspace->ReserveSpace("physmap", PHYSMAP_SIZE, PHYSMAP_BASE);
+    PHYSMAP_BASE = 0xffffff8000000000UL # -512GB
     保留一部分虚拟地址区域，对应于一些有用的物理地址。x86是64gb, arm64是512gb
     // The kernel physmap is a region of the kernel where all of useful physical memory
     // is mapped in one large chunk. It's up to the individual architecture to decide
     // how much to map but it's usually a fairly large chunk at the base of the kernel
     // address space.
     目的是一些需要用到物理地址的情况，比如设备内存映射，可以直接在虚拟地址和物理地址之间建立关系。
+    va = pa + PHYSMAP_BASE  ??
     kernel heap也是利用这个映射区域。
     内核自己要用的其他虚拟内存，比如后面的Handle arena，都在这个区域之后映射。
     之所以Handle arena不用physmap, 是因为它用了vmo lazy commit, 用了vmo就无法用physmap.

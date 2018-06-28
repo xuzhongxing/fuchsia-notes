@@ -25,3 +25,82 @@ libc start main在拿到这个channel handle之后，读取它。channel里的me
 userboot里面是手工组装这个消息。如果是普通应用层应该会把这个封装掉。
 
 \verb|zx_proc_args_t|是传递进程参数的固定的消息格式。作为data写入MessagePack.
+
+\section{进入main()之前的操作}
+
+应用程序的入口是main()，在此之前，libc会做一些设置。
+
+\begin{verbatim}
+
+launchpad_create(job_copy, name, &lp);
+  launchpad_create_with_jobs(job, xjob, name, result);
+launchpad_load_from_vmo(lp, svchost_vmo);
+  launchpad_file_load_with_vdso(lp, vmo);
+    launchpad_file_load(lp, vmo);
+      先检查是不是#!脚本，如果不是：
+      launchpad_elf_load_body(lp, first_line, to_read, vmo);
+        elf_load_start(vmo, hdr_buf, buf_sz, &elf)
+          elf_load_prepare(vmo, hdr_buf, buf_sz, &header, &phoff)
+          读程序头
+        elf_load_get_interp(elf, vmo, &interp, &interp_len);
+          elf_load_find_interp(info->phdrs, info->header.e_phnum,
+            寻找动态链接器
+          handle_interp(lp, vmo, interp, interp_len)
+            setup_loader_svc(lp);
+            elf_load_finish(lp_vmar(lp), elf, interp_vmo,
+                                 &segments_vmar, &lp->base, &lp->entry)
+              把动态链接器的入口作为lp的入口
+
+
+进程创建的时候创建root vmar
+
+launchpad提供了一系列接口，包括：加载可执行文件的vmo，添加启动命令行参数，添加handle。
+
+launchpad_go(launchpad_t* lp, zx_handle_t* proc, const char** errmsg)
+  launchpad_start(lp, &h)
+    prepare_start(lp, &data);
+      zx_channel_create(0, &to_child, &bootstrap);
+      zx_thread_create(lp_proc(lp), thread_name, strlen(thread_name), 0, &thread);
+      给新进程创建stack vmo
+    zx_process_start(data.process, data.thread, data.entry, data.sp,
+                              data.bootstrap, data.vdso_base);
+      In kernel space:
+      thread->Start(pc, sp, static_cast<uintptr_t>(arg_nhv),
+                              arg2, /* initial_thread */ true)              
+
+动态链接库是libc.so. 入口在dl-entry.S文件里。这里会链接真正的可执行文件，找到
+它的入口地址，进入它。实现在zircon/third_party/ulib/musl/ldso/dynlink.c
+
+_dl_start(void* start_arg, void* vdso)
+
+__dls3
+
+可执行文件的最初的入口在zircon/third_party/ulib/musl/arch/aarch64/Scrt1.S
+mov main@GOTPCREL(%rip), %rsi
+jmp *__libc_start_main@GOTPCREL(%rip)
+
+argument在rdi中，main在rsi中。
+
+__libc_start_main(void* arg, int (*main)(int, char**, char**))
+  bootstrap = (uintptr_t)arg;
+  把handles取出来
+  把names取出来
+  设置一些全局handle
+    __environ
+    __zircon_process_self;
+    __zircon_vmar_root_self;
+    __zircon_job_default;
+
+
+  start_main(const struct start_params* p)
+    __libc_extensions_init(p->nhandles, p->handles, p->handle_info,
+                               p->namec, p->names);
+    __libc_startup_handles_init(p->nhandles, p->handles, p->handle_info);
+
+    // Run static constructors et al.
+    __libc_start_init();
+                           
+    // Pass control to the application.
+    exit((*p->main)(p->argc, p->argv, __environ));  
+
+\end{verbatim}
