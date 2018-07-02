@@ -9,6 +9,44 @@ https://chromium.googlesource.com/chromium/src/tools/gn/
 https://ninja-build.org/
 
 \begin{verbatim}
-/home/xzx/fuchsia/buildtools/gn gen /home/xzx/fuchsia/out/mm 
-  --check '--args=target_cpu="arm64" fuchsia_packages=["topaz/packages/default",]'
+/home/xzx/fuchsia/buildtools/gn gen /home/xzx/fuchsia/out/x64 
+  --check '--args=target_cpu="x64" fuchsia_packages=["topaz/packages/default",]'
+
+gn gen是生成ninja文件。
+--args=设置一些变量供gn使用。
+  target_cpu="x64" 
+  fuchsia_packages=["topaz/packages/default",]
+
+gn的缺省变量：
+   - host_cpu
+   - host_os
+   - current_cpu
+   - current_os
+   - target_cpu
+   - target_os
+
+gn启动之后第一件事是寻找当前目录以及父目录里的.gn文件，确定源码树的根。从.gn文件开始执行。
+.gn可能会定义secondary_source目录。gn也会去这里找文件。
+寻找buildconfig文件，执行。
+执行//BUILD.gn, fuchsia设置了root = "//build/gn", 所以会去这里找BUILD.gn
+  source root的作用好像只是去找第一个BUILD.gn
+
+当一个target完整之后，输出ninja文件。
+最后输出build.ninja
+
+
+label包括target, config, toolchain
+
+All targets encountered in the default toolchain (see "gn help toolchain")
+will have build rules generated for them, even if no other targets reference
+them.
+
+buildconfig [required]
+      Path to the build config file. This file will be used to set up the
+      build file execution environment for each toolchain.
+
+gn 定义变量：
+var = value
+
+target_toolchain = "//build/toolchain/fuchsia:x64"
 \end{verbatim}
