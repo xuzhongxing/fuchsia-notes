@@ -1,0 +1,39 @@
+\section{svchost}
+
+\begin{verbatim}
+
+appmgr_svc是通向appmgr的通信通道。
+
+outgoing.ServeFromStartupInfo()
+  Serve(zx::channel(dir_request));
+    vfs_.ServeDirectory(root_dir_, fbl::move(dir_request));
+      OpenVnode(flags, &vn)
+        (*vnode)->Open(flags, &redirect);
+          PseudoDir::Open()不做事
+      vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN)
+        vfs->ServeConnection(fbl::make_unique<Connection>(
+                    vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
+          connection->Serve();
+            wait_.set_object(channel_.get());
+            wait_.Begin(vfs_->async());
+              async_begin_wait(async, &wait_);
+                async->ops->v1.begin_wait(async, wait);
+                  zx_object_wait_async(wait->object, loop->port, (uintptr_t)wait, wait->trigger, ZX_WAIT_ASYNC_ONCE);
+  让root dir监听进来的请求
+
+  provider_load(&service_providers[i], async, outgoing.public_dir());
+    provider_init(instance);
+      init == nullptr
+    provider_publish(instance, async, dir)
+      dir->AddEntry(
+            service_name,
+            fbl::MakeRefCounted<fs::Service>([instance, async, service_name](zx::channel request) {
+                return instance->provider->ops->connect(instance->ctx, async, service_name, request.release());
+            }));
+当有连接请求进来时：
+new launcher::LauncherImpl(zx::channel(request));
+  channel_(fbl::move(channel)),
+  wait_(this, channel_.get(), ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED) 
+launcher->Begin(async);
+  wait_.Begin(async);
+\end{verbatim}
