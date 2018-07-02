@@ -10,14 +10,19 @@ _fs_root = zx_get_startup_handle(PA_HND(PA_USER0, 0));
 devfs_root = zx_get_startup_handle(PA_HND(PA_USER0, 1));
 svc_root = zx_get_startup_handle(PA_HND(PA_USER0, 2));
 zx_handle_t devmgr_loader = zx_get_startup_handle(PA_HND(PA_USER0, 3));
+  这个是fshost为devmgr提供loader服务的handle
 fshost_event = zx_get_startup_handle(PA_HND(PA_USER1, 0));
 
 fshost_start();
     setup_bootfs();
         把/boot下的内容从bootdata里提出来
         setup_bootfs_vmo()
-            system分区也是直接映射在内存里的vmo? 有多大啊？
-
+            system分区也是直接映射在内存里的vmo
+            zx_vmar_map(zx_vmar_root_self(), 0, vmo, 0, size, ZX_VM_FLAG_PERM_READ, &address);
+              映射vmo
+            bootfs_create(&bfs, bootfs_vmo)
+              这里把复制的bootfs vmo映射好
+            bootfs_parse(&bfs, callback, &cd);
 
     vfs_global_init(vfs_create_global_root());
         vfs_create_global_root()
@@ -32,9 +37,10 @@ vfs_connect_global_root_handle(_fs_root);
             vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN);
                 vfs->ServeConnection(fbl::make_unique<Connection>(
                      vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
-
-                     wait_.set_object(channel_.get());
-                     return wait_.Begin(vfs_->async());
+                  connection->Serve()
+                    wait_.set_object(channel_.get());
+                    return wait_.Begin(vfs_->async());
+                    vfs处理消息的入口实际上在Connection::HandleMessage(zxrio_msg_t* msg)
 
 
 fs_root = fs_root_clone()
@@ -51,4 +57,37 @@ fdio_ns_bind(ns, "/system", fs_clone("system"))
         zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path)
             把h1发送给fs_root另一头的事件处理
     return h0
+
+要创建loader service的服务端口了
+loader_service_create_fs(NULL, &loader_service)
+  loader_service_create_default(async, root_dir_fd, -1, fs_lib_paths,out);
+    loader_service_create(async, &fd_ops, NULL, &svc);
+      loader_service_addref(svc);
+loader_service_attach(loader_service, devmgr_loader);
+
+======
+fs_clone("system")
+当root vfs收到ZXRIO_OPEN之后：
+vfs_是root_vfs
+vnode_是global_root VnodeDir
+比如path="system"
+
+Connection::HandleMessage(zxrio_msg_t* msg)
+  OpenAt(vfs_, vnode_, fbl::move(channel), fbl::StringPiece(path, len), flags, mode);
+    vfs->Open(fbl::move(parent), &vnode, path, &path, open_flags, mode);
+      OpenLocked(fbl::move(vndir), out, path, pathout, flags, mode);
+        Vfs::Walk(vndir, &vndir, path, &path)
+          这里返回的vndir是要打开的路径的父目录
+        vfs_name_trim(path, &path, &must_be_dir)
+        vfs_lookup(fbl::move(vndir), &vn, path);
+          vn->Lookup(out, name);
+            得到system目录对应的vnode
+    vnode->Serve(vfs, fbl::move(channel), open_flags);
+      vfs->ServeConnection(fbl::make_unique<Connection>(
+        vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
+
+
+
+
+
 \end{verbatim}

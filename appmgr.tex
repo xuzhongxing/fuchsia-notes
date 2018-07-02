@@ -95,7 +95,7 @@ directory->AddEntry(
 
 
 vfs.ServeDirectory(directory, std::move(h2)
-    请求应该是从h2进来
+    请求从h2进来
     // Tell the calling process that we've mounted the directory.
     r = channel.signal_peer(0, ZX_USER_SIGNAL_0)
     vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN);
@@ -132,9 +132,10 @@ component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
 
     zx::channel::create(0, &svc_channel_server_, &svc_channel_client_)
         看看后面怎么用这个通道
-
+    
+    hub_.AddServices(default_namespace_->services());
     default_namespace_->services().set_backing_dir(std::move(host_directory))
-        把通向"component.Loader"目录服务的通道赋值给ServiceProviderBridge的backing_dir_
+        把通向"component.Loader"目录服务的通道赋值给ServiceProviderDirImpl的backing_dir_
       
     ServiceProviderPtr service_provider;
         ServiceProviderPtr是InterfacePtr<ServiceProvider>
@@ -187,15 +188,15 @@ component::Realm root_realm(nullptr, std::move(h1), kRootLabel)
         service_provider->ConnectToService("component.Loader",h2)
             这个函数是fidl生成的
             controller_->Send
-            把h2发送给了ServiceProviderBridge，因为之前通道的另一头给了ServiceProviderBridge::AddBinding(h2)
-            ServiceProviderBridge::ConnectToService()会被调用，把h2发送给RootLoader::AddBinding监听起来
+            把h2发送给了ServiceProviderDirImpl，因为之前通道的另一头给了ServiceProviderDirImpl::AddBinding(h2)
+            ServiceProviderDirImpl::ConnectToService()会被调用，把h2发送给RootLoader::AddBinding监听起来
             fdio_service_connect_at()
                 RootLoader::AddBinding
 
             返回InterfacePtr<Loader>
     上面这段代码的含义就是通过service_provider建立和Loader这个服务的联系
     service_provider是个客户端，它被AddBinding到ServiceProviderBridge里。
-    ServiceProviderBridge本身是个服务，它的唯一的服务内容就是去ConnectToService()
+    ServiceProviderDirImpl本身是个服务，它的唯一的服务内容就是去ConnectToService()
 
 PublishRootDir(&root_realm, &publish_vfs);
     request = zx_get_startup_handle(PA_DIRECTORY_REQUEST)
@@ -215,8 +216,16 @@ PublishRootDir(&root_realm, &publish_vfs);
            dir_
     dir->AddEntry("svc", svc);
 
-    vfs->ServeDirectory(dir, zx::channel(request));
-    把从devmgr发来的通道挂到目录服务上
+publish_vfs_.ServeDirectory(publish_dir_, zx::channel(args.pa_directory_request));
+  把从devmgr发来的通道挂到目录服务上
+  OpenVnode(flags, &vn)
+    (*vnode)->Open(flags, &redirect)
+      PseudoDir::Open()啥也不干
+  vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN)
+    vfs->ServeConnection(fbl::make_unique<Connection>(vfs, fbl::WrapRefPtr(this), fbl::move(channel), flags));
+      connection->Serve();
+        wait_.set_object(channel_.get());
+        wait_.Begin(vfs_->async());
 
 run_sysmgr()
   fuchsia::sys::LaunchInfo launch_info;
@@ -230,6 +239,7 @@ run_sysmgr()
     返回另一头h2
 
   root_realm.CreateComponent(std::move(launch_info),h2);
+    scheme = "file"
     cb = lambda
     loader_->LoadComponent(url, cb)
         Loader_Proxy::LoadComponent()
@@ -240,9 +250,37 @@ RootLoader::LoadComponent(fidl::StringPtr url,
     CreateComponentWithProcess(
                     std::move(package), std::move(launch_info),
                     std::move(controller), std::move(ns));
+
+        builder.AddServices(std::move(svc));
+            PushDirectoryFromChannel("/svc", std::move(services));
+        flat namespace没有
+        channels = Util::BindDirectory(&launch_info);
+          launch_info->directory_request = std::move(exported_dir_server);
+
         CreateProcess(job_for_child_, std::move(executable), url,
                     std::move(launch_info), zx::channel(), builder.Build());
+          fdio_spawn_vmo(job.get(), flags, data.vmo().release(), argv.data(),
+                    nullptr, actions.size(), actions.data(),
+                    process.reset_and_get_address(), err_msg);
 
+              zx_channel_create(0, &launcher, &launcher_request)  
+              fdio_service_connect("/svc/fuchsia.process.Launcher", launcher_request);
+                fdio_ns_connect(fdio_root_ns, svcpath,
+                               ZX_FS_RIGHT_READABLE | ZX_FS_RIGHT_WRITABLE, h);
+                  ns_walk_locked(&vn, &path)
+                  fdio_open_at(vn->remote, path, flags, h); 
+                    zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path);
+                  建立和process launcher的通道
+              send_string_array(launcher, fuchsia_process_LauncherAddArgsOrdinal, argv);
+              send_handles(launcher, handle_capacity, flags, job, action_count, actions, err_msg);
+              send_namespace(launcher, name_count, name_len, flat, action_count, actions, err_msg);
+              zx_channel_call(launcher, 0, ZX_TIME_INFINITE, &args,
+                                 &actual_bytes, &actual_handles);
+
+fdio_service_connect("/svc/.", h1.release())
+  fdio_ns_connect(fdio_root_ns, svcpath,
+                               ZX_FS_RIGHT_READABLE | ZX_FS_RIGHT_WRITABLE, h);
+    ns_walk_locked(&vn, &path)       
 ------------
 
 收到从sysmgr来的rpc:
