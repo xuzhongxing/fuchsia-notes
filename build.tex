@@ -1,6 +1,12 @@
 \section{Fuchsia Build}
+gn args out/x64/ --list --short
+这个命令显示所有的变量的预设值。
 
-fx set arm64
+gn desc out/x64 //garnet/bin/appmgr:bin
+描述一个target的全部信息。
+
+
+fx set arm64 out/mydir
 
 fx调用gn工具处理.gn文件，生成.ninja文件。ninja根据.ninja文件进行构建。
 
@@ -24,6 +30,25 @@ gn的缺省变量：
    - current_os
    - target_cpu
    - target_os
+
+target_os = "fuchsia"
+target_cpu="x64"
+current_cpu = target_cpu
+current_os = target_os
+
+select_variant = []
+select_variant_canonical = []
+select_variant_shortcuts = [{
+  select_variant = [{
+  variant = "asan_no_detect_leaks"
+  host = true
+  dir = ["//third_party/yasm", "//third_party/vboot_reference", "//garnet/tools/vboot_reference"]
+}, {
+  variant = "asan"
+  host = true
+}]
+  name = "host_asan"
+}]
 
 gn启动之后第一件事是寻找当前目录以及父目录里的.gn文件，确定源码树的根。从.gn文件开始执行。
 .gn可能会定义secondary_source目录。gn也会去这里找文件。
@@ -50,6 +75,54 @@ buildconfig [required]
 
 gn 定义变量：
 var = value
-
+host_toolchain = "//build/toolchain:host_x64"
 target_toolchain = "//build/toolchain/fuchsia:x64"
+
+toolchain_variant = {
+  base = "//build/toolchain/fuchsia:x64"
+}
+toolchain_variant.name = ""
+toolchain_variant.suffix = ""
+toolchain_variant.configs = []
+toolchain_variant.remove_common_configs = []
+toolchain_variant.remove_shared_configs = []
+toolchain_variant.deps = []
+toolchain_variant.is_pic_default = false
+is_linux = true
+default_library_type = "static_library"
+
+toolchain_variant = {
+  base = "//build/toolchain/fuchsia:x64"
+}
+universal_variants = [{
+  toolchain_args = {
+  is_debug = false
+}
+  configs = []
+  name = "release"
+}]
+
+clang_toolchain_suite("x64")
+  is_host = false
+只有下列variant:
+{
+  base = "//build/toolchain/fuchsia:x64"
+  configs = []
+  remove_shared_configs = []
+  remove_common_configs = []
+  suffix = ""
+  deps = []
+  name = ""
+}
+variant_used
+{
+  base = "//build/toolchain:host_x64"
+  configs = []
+  remove_shared_configs = []
+  remove_common_configs = []
+  suffix = ""
+  deps = []
+  name = ""
+}
+
 \end{verbatim}
