@@ -78,4 +78,27 @@ it->second.ConnectToService(std::move(client_handle), service_name)
     "fuchsia.amber.Control"
 ]
 
+先看一下sysmgr是如何与appmgr里的fuchsia::sys::Launcher建立通道的。
+sysmgr:
+env_->GetLauncher(env_launcher_.NewRequest());
+
+appmgr:
+
+env_launcher_.NewRequest()
+  zx::channel::create(0, &h1, &h2)
+
+  return InterfaceRequest<Interface>(std::move(h2));
+
+Namespace::GetLauncher(fidl::InterfaceRequest<Launcher> launcher)
+
+
+sysmgr启动app通过fuchsia::sys::Launcher::CreateComponent().  
+调用的是appmgr里的Namespace::CreateComponent()
+
+sysmgr:
+env_launcher_->CreateComponent(std::move(launch_info), nullptr);
+
+appmgr:
+realm_->CreateComponent(std::move(launch_info), std::move(controller));
+
 \end{verbatim}
