@@ -80,17 +80,33 @@ it->second.ConnectToService(std::move(client_handle), service_name)
 
 先看一下sysmgr是如何与appmgr里的fuchsia::sys::Launcher建立通道的。
 sysmgr:
-env_->GetLauncher(env_launcher_.NewRequest());
-
-appmgr:
 
 env_launcher_.NewRequest()
-  zx::channel::create(0, &h1, &h2)
+  InterfaceRequest<Interface> NewRequest() 这个方法创建一个channel, 自己留下一头，
+  把另一头封在InterfaceRequest<Interface>()里返回出来。
+  留下的那头会自动bind上，但是没什么用，因为是默认的处理。
 
-  return InterfaceRequest<Interface>(std::move(h2));
+env_->GetLauncher(env_launcher_.NewRequest());
+  ->会返回&impl_->proxy
+  impl_是InterfacePtr<T>::Impl，里面的proxy是Interface::Proxy_，另外还有一个ProxyController.
+  Environment_Proxy::GetLauncher(::fidl::InterfaceRequest<Launcher> launcher)
+    controller_->Send(&fuchsia_sys_EnvironmentGetLauncherRequestTable, _encoder.GetMessage(), nullptr);
+      message.Write(reader_.channel().get(), 0);
 
+appmgr:
 Namespace::GetLauncher(fidl::InterfaceRequest<Launcher> launcher)
+  launcher_bindings_.AddBinding(this, std::move(launcher));
+    std::make_unique<Binding>(std::forward<ImplPtr>(impl),std::move(request))
+      Binding与InterfacePtr<>::Impl相对应，里面有Interface::Stub_和StubController
 
+      Bind(request.TakeChannel(), async);
+        controller_.reader().Bind(std::move(channel), async);
+          wait_.object = channel_.get();
+          async_begin_wait(async_, &wait_);
+            async->ops->v1.begin_wait(async, wait);
+              zx_object_wait_async(wait->object, loop->port, (uintptr_t)wait, wait->trigger, ZX_WAIT_ASYNC_ONCE);
+
+等下次通信的时候，会调用wait对象里的handler.
 
 sysmgr启动app通过fuchsia::sys::Launcher::CreateComponent().  
 调用的是appmgr里的Namespace::CreateComponent()
