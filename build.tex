@@ -29,7 +29,10 @@ gn启动之后第一件事是寻找当前目录以及父目录里的.gn文件，
 .gn可能会定义secondary_source目录。gn也会去这里找文件。
 寻找buildconfig文件，执行。
 执行//BUILD.gn, fuchsia设置了root = "//build/gn", 所以会去这里找BUILD.gn
-  source root的作用好像只是去找第一个BUILD.gn
+root  
+  Label of the root build target. The GN build will start by loading the
+  build file containing this target name. This defaults to "//:" which will
+  cause the file //BUILD.gn to be loaded.
 
 当一个target完整之后，输出ninja文件。
 最后输出build.ninja
