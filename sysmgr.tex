@@ -28,7 +28,29 @@ async::Loop loop(&kAsyncLoopConfigMakeDefault);
             async_set_default(&loop->async);
                 g_default = async;
 
+fuchsia::sys::StartupContext::CreateFromStartupInfo()
+  CreateFromStartupInfoNotChecked();
+    directory_request = zx_take_startup_handle(PA_DIRECTORY_REQUEST);
 
+    service_root = subtle::CreateStaticServiceRootHandle()
+      创建通向/svc的通道
+      zx::channel::create(0, &h1, &h2)
+      fdio_service_connect("/svc/.", h1.release())
+        fdio_ns_connect(fdio_root_ns, svcpath, ZX_FS_RIGHT_READABLE | ZX_FS_RIGHT_WRITABLE, h);
+          ns_walk_locked(&vn, &path)
+          fdio_open_at(vn->remote, path, flags, h);
+            zxrio_connect(dir, h, ZXRIO_OPEN, flags, 0755, path);
+              fidl_open_request(svc, cnxn, flags, mode, name, len);
+                request->hdr.ordinal = ZXFIDL_OPEN;
+                message.Write(srv, 0);
+  incoming_services_.Bind(std::move(service_root));
+    directory_ = std::move(directory);
+  outgoing_.Serve(std::move(directory_request));
+
+  incoming_services_.ConnectToService(environment_.NewRequest());
+  incoming_services_.ConnectToService(launcher_.NewRequest());
+
+  总结：连上"/svc"总服务，打开自己的服务，连上2个子服务。
 
 sysmgr::App app;
 RegisterSingleton()注册一个callback给目录服务，当有请求过来时，

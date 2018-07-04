@@ -1,0 +1,19 @@
+\section{device runner}
+
+\begin{verbatim}
+
+启动的是userpicker_device_shell.
+ermine_user_shell会生成device_shell_config.json，
+userpicker_device_shell会读这个文件，启动ermine_user_shell
+
+
+modular::DeviceRunnerApp app(settings, context, [&loop, &cobalt_cleanup] {
+    cobalt_cleanup.call();
+    loop.Quit();
+});
+  Start()
+
+
+
+
+\end{verbatim}
