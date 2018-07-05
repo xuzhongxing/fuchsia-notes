@@ -1,0 +1,47 @@
+\section{userpickerdevshell}
+
+
+\begin{verbatim}
+对userpicker_device_shell的加载应该是走directory
+
+RootLoader::LoadComponent
+==========================
+
+
+package.directory = std::move(directory); // "/pkgfs/packages/userpicker_device_shell"
+package.resolved_url = fxl::Concatenate({"file://", pkg_path});
+callback(fidl::MakeOptional(std::move(package)));
+
+CreateComponentFromPackage(
+                std::move(package), std::move(launch_info),
+                std::move(controller), std::move(ns), fbl::move(callback));
+
+  fd是通向目录"/pkgfs/packages/userpicker_device_shell"
+  cmx_data 
+  {
+    "program": {
+        "binary": "bin/app"
+    },
+    "sandbox": {
+        "dev": [ "misc" ],
+        "system": [ "data/sysui" ]
+    }
+  }
+
+  runtime_data
+  {
+      "runner": "flutter_aot_runner"
+  }
+
+  appdata "bin/app" not exist
+
+  exported_dir_layout = ExportedDirType::kPublicDebugCtrlLayout;
+
+  GetOrCreateRunner(runtime.runner());
+    result.first->second = std::make_unique<RunnerHolder>(
+        std::move(runner_services), std::move(runner_controller),
+        std::move(runner_launch_info), this,
+        [this, runner] { runners_.erase(runner); });
+
+  要去加载flutter_aot_runner了。它有bin/app
+\end{verbatim}

@@ -1,0 +1,65 @@
+\section{display test}
+
+\begin{verbatim}
+在此之前，i915驱动会加载display controller驱动。
+display controller驱动会注册一个callback. i915的controller会在最后
+尝试去调这个callback，把display的信息告诉display controller.
+但是由于是在不同的线程里，当i915去调的时候可能还没注册好。所以，
+在注册时，会检查一个变量ready_for_callback_，如果ready就补调一次。
+
+
+main():
+========
+bind_display()
+vfd = open("/dev/class/display-controller/000", O_RDWR);
+  vopenat(AT_FDCWD, path, flags, ap);
+    __fdio_open_at(&io, dirfd, path, flags, mode)
+      fdio_iodir(&path, dirfd);
+        iodir = fdio_root_handle;
+
+      iodir->ops->open(iodir, clean, fdio_flags_to_zxio(flags), mode, io);
+        调用的是mxdir_open
+        ns_walk_locked(&vn, &path)
+          vn_lookup_locked(vn, name, len);
+          就找到/dev，是个remote
+        zxrio_open_handle(vn->remote, path, flags, mode, out);
+          把剩下的path传进去
+          zxrio_getobject(h, ZXRIO_OPEN, path, flags, mode, &info, &control_channel);
+            老一套，建通道，传一头，返回另一头
+            zxrio_connect(rio_h, h1, ZXRIO_OPEN, flags, mode, name)
+
+    fd = fdio_bind_to_fd(io, -1, 0)
+
+devmgr收到ZXRIO_OPEN请求：
+
+devfs_open(dn, h, path, flags);
+  devfs_walk(&dn, path, &path);
+    找到对应于"class/display-controller/000"的那个devnode_t
+    发送ZXRIO_OPEN消息给devhost，对应于display_controller
+
+devhost:
+devhost_get_handles(h, dev, name, flags);
+  device_open_at(dev, &dev, path, flags)
+    devhost_device_open_at(dev, out, path, flags);
+      dev_op_open_at(dev, out, path, flags);
+        Controller::DdkOpenAt(zx_device_t** dev_out, const char* path, uint32_t flags)
+          client = fbl::make_unique_checked<ClientProxy>(&ac, this, is_vc);
+          client->Init();
+            handler_.Init(&client_handle_);
+              创建通道，一头挂在自己的api wait上，另一头给client_handle_
+
+          client->OnDisplaysChanged(current_displays, idx, nullptr, 0)
+            Client::OnDisplaysChanged
+          client->DdkAdd(is_vc ? "dc-vc" : "dc", DEVICE_ADD_INSTANCE)
+
+回到display-test main.cpp:
+bind_display()
+  ioctl_display_controller_get_handle(vfd, &dc_handle)
+
+devhost:
+ClientProxy::DdkIoctl
+    out_buf = client_handle_.release();
+    把之前创建的通道的一头返回。
+
+  msg.Read(dc_handle, 0)
+\end{verbatim}

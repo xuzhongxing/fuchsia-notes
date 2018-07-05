@@ -12,6 +12,8 @@ modular::DeviceRunnerApp app(settings, context, [&loop, &cobalt_cleanup] {
     loop.Quit();
 });
   Start()
+    std::make_unique<AppClient<fuchsia::modular::Lifecycle>>(context_->launcher().get(), CloneStruct(settings_.device_shell));
+      device_shell是"userpicker_device_shell"
 
 
 

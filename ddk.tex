@@ -59,6 +59,9 @@ kpci会match这个protocol id.
 一个驱动发布设备时，会指定protocol id, 如果别的驱动匹配这个protocol id, 则会加载该驱动。
 
 i915的match需要BIND_PCI_DID。这个只有kpci.c: pci_init_child()才会设置。
+
+在devhost添加完了设备，向dc发送添加设备的消息的目的有2个，一个是在devfs里发布该设备的节点，
+另一个是通过该设备的protocol和props匹配是否有新的设备驱动。
 \end{verbatim}
 
 

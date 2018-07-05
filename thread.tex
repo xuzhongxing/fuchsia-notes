@@ -95,6 +95,13 @@ __libc_start_main(void* arg, int (*main)(int, char**, char**))
     __libc_extensions_init(p->nhandles, p->handles, p->handle_info,
                                p->namec, p->names);
       会把所有的name对应的handle拿出来，创建fdio root namespace.
+      fdio_ns_create(&fdio_root_ns)
+      fdio_ns_bind(fdio_root_ns, names[arg], h);
+        把h绑定在对应路径的remote上。
+      fdio_root_handle = fdio_ns_open_root(fdio_root_ns);
+        fdio_dir_create_locked(ns, &ns->root);
+          root目录的io ops是dir->io.ops = &dir_ops;
+
     __libc_startup_handles_init(p->nhandles, p->handles, p->handle_info);
 
     // Run static constructors et al.
