@@ -63,6 +63,15 @@ root
 最后输出build.ninja
 
 
+gn 预定义的变量：
+target_out_dir
+{{source_out_dir}}
+      The object file directory (*) corresponding to the source file's path,
+      relative to the build directory. this us be different than the target's
+      out directory if the source file is in a different directory than the
+      build.gn file.
+        "//foo/bar/baz.txt" => "obj/foo/bar"
+
 label包括target, config, toolchain
 
 All targets encountered in the default toolchain (see "gn help toolchain")
