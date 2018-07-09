@@ -37,14 +37,8 @@ StartupContext::StartupContext(zx::channel service_root, zx::channel directory_r
 
 App::App(fuchsia::sys::StartupContext* app_context, fit::closure quit_callback)
     : scenic_(std::make_unique<Scenic>(app_context, std::move(quit_callback)))
-
-    app_context->outgoing().AddPublicService<fuchsia::ui::scenic::Scenic>(
-        [this](fidl::InterfaceRequest<fuchsia::ui::scenic::Scenic> request) {
-          FXL_VLOG(1) << "Accepting connection to Scenic";
-          scenic_bindings_.AddBinding(this, std::move(request));
-        });
-
-
+    app_context->outgoing().AddPublicService(scenic_bindings_.GetHandler(this));
+    
     scenic_->RegisterSystem<scenic::gfx::GfxSystem>()     // SystemT = scenic::gfx::GfxSystem
         system = new GfxSystem(SystemContext(app_context_, quit_callback_.share())
             display_manager_.WaitForDefaultDisplay(cb1)
@@ -53,42 +47,18 @@ App::App(fuchsia::sys::StartupContext* app_context, fit::closure quit_callback)
                         open("/dev/class/display-controller", O_DIRECTORY | O_RDONLY);
                         zx_channel_create(0, &wd.channel, &dir_watch_handle)
                         ioctl_vfs_watch_dir(dir_fd.get(), &wd)
+                        device watcher会触发cb3的调用
 
 如果/dev/class/display-controller存在，调用DeviceWatcher::Handler
 DisplayWatcher::HandleDevice
-        dc_fd_ = std::move(fd);
-        dc_channel_ = dc_handle.get();
-        display_controller_.Bind(std::move(dc_handle));
+  ioctl_display_controller_get_handle(fd.get(), dc_handle.reset_and_get_address())
+    把ClientProxy的client handle拿到dc_handle里。
+    调用cb2
 
-        // TODO(FIDL-183): Resolve this hack when synchronous interfaces
-        // support events.
-        auto dispatcher = static_cast<fuchsia::display::Controller::Proxy_*>(
-            event_dispatcher_.get());
-        dispatcher->DisplaysChanged = [this](auto added, auto removed) {
-          DisplaysChanged(std::move(added), std::move(removed));
-        };
-        dispatcher->ClientOwnershipChange = [this](auto change) {
-          ClientOwnershipChange(change);
-        };
+      display_controller_.Bind(std::move(dc_handle));
+      让wait开始处理display controller传来的消息：OnAsync()
 
-        wait_.set_object(dc_channel_);
-        wait_.set_trigger(ZX_CHANNEL_READABLE | ZX_CHANNEL_PEER_CLOSED);
-        wait_.Begin(async_get_default());
-
-        display manager拿到dc_channel_
-
-
-先看一下scene_manager_vulkan_swapchain=2的情况
-Initialize()
-    escher::VulkanIsSupported()
-        CheckIfVulkanIsSupported()
-            CreateVulkanInstance()
-                vk::createInstance(&instance_info, nullptr, &instance)
-                    public/lib/escher/third_party/vulkansdk/x86_64/include/vulkan/vulkan.hpp
-                    ::vkCreateInstance( pCreateInfo, pAllocator, pInstance);
-                        in file //garnet/public/lib/escher/third_party/vulkansdk/source/loader/trampoline.c
-
-
+      cb1没有被调用。
 
 
 \end{verbatim}

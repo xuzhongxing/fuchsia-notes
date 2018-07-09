@@ -14,6 +14,19 @@ modular::DeviceRunnerApp app(settings, context, [&loop, &cobalt_cleanup] {
   Start()
     std::make_unique<AppClient<fuchsia::modular::Lifecycle>>(context_->launcher().get(), CloneStruct(settings_.device_shell));
       device_shell是"userpicker_device_shell"
+      appclient会通过service_连接device shell服务。
+
+      launch_info.directory_request = services_.NewRequest();
+      launcher->CreateComponent(std::move(launch_info), app_.NewRequest());
+        把userpicker_device_shell启动起来
+      services().ConnectToService(service_.NewRequest());
+        连接device shell里的LifeCycle服务
+
+    device_shell_app_->services().ConnectToService(device_shell_.NewRequest());
+      device_shell_通向device shell里的device shell服务了
+
+    device_shell_app_->services().ConnectToService(device_shell_view_provider.NewRequest());
+      向device shell服务要device shell view服务。
 
 
 

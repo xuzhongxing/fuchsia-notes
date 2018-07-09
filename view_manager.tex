@@ -1,0 +1,11 @@
+\section{view manager}
+
+\begin{verbatim}
+ermine_user_shell会请求连接view manager服务。之后与view manager有很多互动。
+先看看view manager怎么起来的。
+
+view_manager::ViewManagerApp app;
+  new ViewRegistry(startup_context_.get())
+    startup_context_->ConnectToEnvironmentService<fuchsia::ui::scenic::Scenic>()
+      先去看看Scenic服务是怎样起来的。
+\end{verbatim}

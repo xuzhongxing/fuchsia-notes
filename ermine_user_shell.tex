@@ -1,0 +1,18 @@
+\section{ermine}
+
+\begin{verbatim}
+
+std::make_unique<ViewController>(
+      context_->launcher().get(),
+      context_
+          ->ConnectToEnvironmentService<fuchsia::ui::views_v1::ViewManager>(),
+      std::move(view_owner_request),
+      [this](ViewController* controller) { DestroyController(controller); })
+
+  1. launcher
+  2. ViewManager
+  3. view owner request -- 发送CreateView请求的那方的请求通道，这东西后来被传给ViewManager了
+
+
+
+\end{verbatim}

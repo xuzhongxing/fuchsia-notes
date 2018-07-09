@@ -1,6 +1,157 @@
 \section{userpickerdevshell}
 
+在生成的fuchsia映像里，dart程序都是以snapshot的形式存在于data目录下：
+isolate_snapshot_data.bin
+isolate_snapshot_instructions.bin
+shared_snapshot_data.bin
+shared_snapshot_instructions.bin
+vm_snapshot_data.bin
+vm_snapshot_instructions.bin
 
+
+\subsection{userpicker device shell的构建}
+\begin{verbatim}
+[10653/22566] /usr/bin/env ../../build/gn/write_package_json.py 
+  --name userpicker_device_shell 
+  --version 0 
+  obj/topaz/bin/userpicker_device_shell/userpicker_device_shell_meta_package.json
+
+这个命令输出一个package file
+{"version": "0", "name": "userpicker_device_shell"}
+
+build/dart/gen_dot_packages.py
+  --out /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.packages
+  --source-dir /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib 
+  --deps /data/download/fuchsia/out/j1/dartlang/gen/garnet/public/fidl/fuchsia.timezone/fuchsia.timezone.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/garnet/public/fidl/fuchsia.ui.input/fuchsia.ui.input.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/garnet/public/fidl/fuchsia.ui.views_v1/fuchsia.ui.views_v1.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/peridot/public/fidl/fuchsia.modular/fuchsia.modular.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/peridot/public/fidl/fuchsia.modular.auth/fuchsia.modular.auth.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/third_party/dart-pkg/git/flutter/packages/flutter/flutter.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/third_party/dart-pkg/pub/http/http.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/lib/device_shell/lib.device_shell.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/lib/settings/lib.settings.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/public/dart/fidl/fidl.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/public/dart/widgets/lib.widgets.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/public/lib/app/dart/dart.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/public/lib/ui/flutter/flutter.packages 
+  /data/download/fuchsia/out/j1/dartlang/gen/topaz/shell/widgets/widgets.packages 
+  --package-name userpicker_device_shell
+
+上面的命令作用是把source dir和deps的路径都收集在一起，写到.packages文件里。
+
+
+../../build/dart/identify_sources.py
+ --gen-snapshot /data/download/fuchsia/topaz/tools/prebuilt-dart-sdk/linux-x64/bin/gen_snapshot.fuchsia-x64 
+ --sources /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/authentication_context_impl.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/authentication_overlay.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/authentication_overlay_model.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/circular_button.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/clock.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/user_list.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/user_picker_device_shell_model.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/user_picker_device_shell_screen.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/user_picker_screen.dart 
+ /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/main.dart 
+ --packages /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.packages 
+ --source-dir /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib 
+ --output /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.sources 
+ --depfile /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library_identify_sources.d 
+ --depname dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.sources 
+ --url-mapping dart:zircon,/data/download/fuchsia/topaz/public/dart-pkg/zircon/lib/zircon.dart dart:fuchsia,/data/download/fuchsia/topaz/public/dart-pkg/fuchsia/lib/fuchsia.dart dart:mozart.internal,/data/download/fuchsia/topaz/public/lib/ui/flutter/sdk_ext/mozart.dart dart:ui,/data/download/fuchsia/third_party/flutter/lib/ui/ui.dart
+
+这个命令生成一个包含dart源文件列表的文件
+# Uses the Dart snapshotter to identify the source files of a library based on
+# the list of its public files.
+
+../../build/dart/gen_analyzer_invocation.py 
+  --out /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.analyzer.sh 
+  --source-file /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.sources 
+  --dot-packages /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.packages 
+  --dartanalyzer /data/download/fuchsia/topaz/tools/prebuilt-dart-sdk/linux-x64/bin/dartanalyzer 
+  --dart-sdk /data/download/fuchsia/topaz/tools/prebuilt-dart-sdk/linux-x64 
+  --options /data/download/fuchsia/topaz/bin/userpicker_device_shell/analysis_options.yaml 
+  --package-name userpicker_device_shell
+
+Generate a script that invokes the Dart analyzer
+对代码做静态分析，检查错误
+
+/usr/bin/env ../../build/dart/run_analysis.py
+
+
+/usr/bin/env host_x64/dart-tools/kernel_compiler 
+  --aot --target flutter_runner --sdk-root /data/download/fuchsia/out/j1/flutter_runner_patched_sdk 
+  --packages /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.packages 
+  --depfile gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_kernel.dil.d 
+  --output gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_kernel.dil 
+  --embed-sources /data/download/fuchsia/topaz/bin/userpicker_device_shell/lib/main.dart
+
+
+这个命令是生成kernel语言表示。
+
+
+/usr/bin/env ../../topaz/tools/prebuilt-dart-sdk/linux-x64/bin/gen_snapshot.fuchsia-x64 
+  --reify_generic_functions --strong --deterministic --snapshot_kind=app-aot-blobs 
+  --vm_snapshot_data=/data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_vm_data.aotsnapshot 
+  --vm_snapshot_instructions=/data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_vm_instructions.aotsnapshot 
+  --isolate_snapshot_data=/data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_data.aotsnapshot 
+  --isolate_snapshot_instructions=/data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_instructions.aotsnapshot 
+  --shared_data=/data/download/fuchsia/topaz/runtime/dart_runner/empty --shared_instructions=/data/download/fuchsia/topaz/runtime/dart_runner/empty 
+  --print-instructions-sizes-to=/data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell/stats/symbol_sizes.json 
+  --embedder_entry_points_manifest=/data/download/fuchsia/third_party/dart/runtime/bin/dart_io_entries.txt 
+  --embedder_entry_points_manifest=/data/download/fuchsia/third_party/flutter/runtime/dart_vm_entry_points.txt 
+  --embedder_entry_points_manifest=/data/download/fuchsia/topaz/runtime/flutter_runner/dart_vm_entry_points_fuchsia.txt 
+  --enable_asserts /data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_kernel.dil
+
+create an AOT application snapshot as blobs suitable for loading with mmap
+
+
+../../topaz/runtime/flutter_runner/build/asset_package.py --flutter-root /data/download/fuchsia/third_party/dart-pkg/git/flutter 
+  --flutter-tools /data/download/fuchsia/out/j1/host_x64/dart-tools/fuchsia_asset_builder 
+  --app-dir /data/download/fuchsia/topaz/bin/userpicker_device_shell 
+  --asset-dir /data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/build 
+  --packages /data/download/fuchsia/out/j1/dartlang/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell_dart_library.packages 
+  --asset-manifest-out /data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/build/userpicker_device_shell_pkgassets 
+  --manifest /data/download/fuchsia/topaz/bin/userpicker_device_shell/pubspec.yaml
+
+Package a Flutter application
+
+../../third_party/dart/build/gn_run_binary.py compiled_action 
+  /data/download/fuchsia/topaz/tools/prebuilt-dart-sdk/linux-x64/bin/dart 
+  /data/download/fuchsia/third_party/dart/pkg/vm/bin/run_binary_size_analysis.dart 
+  /data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell/stats/symbol_sizes.json 
+  /data/download/fuchsia/out/j1/gen/topaz/bin/userpicker_device_shell/userpicker_device_shell/stats
+
+This tool is used to process snapshot size reports produced by
+--print-instructions-sizes-to=symbol-sizes.json.
+
+It will create an interactive web-page in the output-directory which can be
+viewed in a browser:
+
+../../build/images/finalize_manifests.py 
+  --depfile=obj/topaz/bin/userpicker_device_shell/userpicker_device_shell.manifest.d 
+  --build-id-file=obj/topaz/bin/userpicker_device_shell/userpicker_device_shell.manifest.ids.txt 
+  --stripped-dir=obj/topaz/bin/userpicker_device_shell/userpicker_device_shell.manifest.stripped 
+  @__topaz_bin_userpicker_device_shell_userpicker_device_shell.manifest___build_toolchain_fuchsia_x64__rule..rsp
+
+It emits final /boot and /system manifests used to make the actual images,
+final archive manifests used to make each package, and the build ID map.
+
+../../build/gn_run_binary.sh 
+  ../../buildtools/linux-x64/clang/bin host_x64/pm 
+  -k ../../build/development.key 
+  -o obj/topaz/bin/userpicker_device_shell/userpicker_device_shell.meta 
+  -m obj/topaz/bin/userpicker_device_shell/userpicker_device_shell.manifest build
+
+pm是fuchsia package manager.
+
+../../build/images/manifest.py --contents --output=obj/build/images/pkgsvr_index 
+../../build/images/manifest.py --contents --output obj/build/images/update_packages.manifest 
+../../build/images/manifest.py --absolute --output=obj/build/images/amber_index 
+
+\end{verbatim}
+
+\subsection{load}
 \begin{verbatim}
 对userpicker_device_shell的加载应该是走directory
 
@@ -59,4 +210,10 @@ CreateComponentFromPackage(
                            std::move(ns), std::move(controller));
     启动inner_package
     转入flutter_aot_runner
+
+\subsection{实现}
+
+
+
+
 \end{verbatim}
