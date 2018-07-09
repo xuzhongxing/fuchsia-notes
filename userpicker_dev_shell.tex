@@ -43,5 +43,20 @@ CreateComponentFromPackage(
         std::move(runner_launch_info), this,
         [this, runner] { runners_.erase(runner); });
 
+        RunnerHolder::RunnerHolder()
+          realm->CreateComponent(std::move(launch_info), controller_.NewRequest(),
+                         [this](ComponentControllerImpl* component) {
+                           CreateComponentCallback(component);
+                         });
+            callback(key);
+            CreateComponentCallback(component);
+          services_.ConnectToService(runner_.NewRequest());
+
   要去加载flutter_aot_runner了。它有bin/app
+  RuntimeHolder在构造时就会启动flutter_aot_runner, 并连接它的服务
+
+  runner->StartComponent(std::move(inner_package), std::move(startup_info),
+                           std::move(ns), std::move(controller));
+    启动inner_package
+    转入flutter_aot_runner
 \end{verbatim}
