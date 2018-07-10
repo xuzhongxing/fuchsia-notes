@@ -45,6 +45,7 @@ App::App(fuchsia::sys::StartupContext* app_context, fit::closure quit_callback)
                 display_watcher_.WaitForDisplay(cb2)
                     device_watcher_ = fsl::DeviceWatcher::Create("/dev/class/display-controller", cb3)
                         open("/dev/class/display-controller", O_DIRECTORY | O_RDONLY);
+                          这里会触发display controller里面的DdkOpenAt()被调用，会给DisplayManager发送DisplaysChanged rpc
                         zx_channel_create(0, &wd.channel, &dir_watch_handle)
                         ioctl_vfs_watch_dir(dir_fd.get(), &wd)
                         device watcher会触发cb3的调用
@@ -58,7 +59,36 @@ DisplayWatcher::HandleDevice
       display_controller_.Bind(std::move(dc_handle));
       让wait开始处理display controller传来的消息：OnAsync()
 
-      cb1没有被调用。
+由于刚才open display-controller的时候触发了display controller发送DisplaysChanged rpc
+所以调用
+DisplayManager::OnAsync()
+  DisplayManager::DisplaysChanged()
+    display_controller_->CreateLayer(&status, &layer_id_);
+      rpc 调用display controller
+      Client::HandleCreateLayer
+        CreateLayer(&resp->layer_id);
+          创建一个Layer
+    display_controller_->SetDisplayLayers(display.id, std::move(fidl_layers))
+      rpc:
+      Client::HandleSetDisplayLayers
+        把它放到对应的display的pending layers里
+    default_display_ = std::make_unique<Display>
+      创建新的Display    
+    ClientOwnershipChange(owns_display_controller_);
+      default_display_->ownership_event().signal(
+          fuchsia::ui::scenic::displayOwnedSignal,
+          fuchsia::ui::scenic::displayNotOwnedSignal);
+        给这个event发信号。暂时不知道谁会处理。mark一下。
+
+    display_available_cb_();  调用cb1
+GfxSystem::Initialize()
+  // 终于要跟Vulkan打交道了
+  escher::VulkanIsSupported()
+    首先检查是否有Vulkan支持
+    CheckIfVulkanIsSupported();
+      CreateVulkanInstance();
+        vk::createInstance(&instance_info, nullptr, &instance)
+
 
 
 \end{verbatim}

@@ -23,4 +23,10 @@ args.proto_ops = &i915_gpu_core_protocol_ops;
 device_add(zxdev(), &args, &zx_gpu_dev_)
 
 
+
+
+
+
+每次来一个Controller::DdkOpenAt()就会创建一个ClientProxy对应之。
+
 \end{verbatim}

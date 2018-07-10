@@ -19,6 +19,7 @@ vulkan loader是lunarg提供的
 icd是mesa的，应该被修改调用magma
 
 gpu驱动在garnet/drivers/gpu里面，叫做magma driver. 入口在driver_entry.cc里。
+(现在好像在弃用magma, 改用新的display controller接口)
 
 zircon里还有vim display驱动，是管hdmi的。
 
@@ -48,5 +49,12 @@ trampoline.c: vkCreateInstance()
         icd_result = ptr_instance->
             icd_tramp_list.scanned_list[i].CreateInstance(&icd_create_info, 
                                         pAllocator, &(icd_term->instance));
+
+
+\subsection{notes}
+
+一个physical device会有多个display, 以及多个plane.
+一个plane可能对应一个display，也可能对应多个display.
+
 
 \end{verbatim}
