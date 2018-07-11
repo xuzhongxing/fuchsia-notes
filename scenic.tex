@@ -82,13 +82,38 @@ DisplayManager::OnAsync()
 
     display_available_cb_();  调用cb1
 GfxSystem::Initialize()
-  // 终于要跟Vulkan打交道了
   escher::VulkanIsSupported()
     首先检查是否有Vulkan支持
     CheckIfVulkanIsSupported();
       CreateVulkanInstance();
         vk::createInstance(&instance_info, nullptr, &instance)
+      CreateVulkanDevice(instance);
+        physical_device.createDevice(&device_info, nullptr, &device)
 
+  InitializeEscher();
+    escher::VulkanInstance::New(std::move(instance_params));
+      vk::createInstance(info);
+    CreateVulkanMagmaSurface(vulkan_instance_->vk_instance());
+      vkCreateMagmaSurfaceKHR(instance, &create_info, nullptr, &surface);
+        定义在third_party/mesa/src/intel/vulkan/anv_wsi_magma.cc
+        anv_CreateMagmaSurfaceKHR()
+          surface里面只有一个类型和是否有fb
+          fb_bind(false, &err) // framebuffer.c
+            这个会返回false, failed to open display controller
+          VkIcdSurfaceBase_to_handle(&surface->base);
+            定义在third_party/mesa/src/vulkan/wsi/wsi_common.h
 
+    escher::VulkanDeviceQueues::New(vulkan_instance_, device_queues_params);
+      FindSuitablePhysicalDeviceAndQueueFamilies(instance, params);
+      physical_device.createDevice(device_info);
+        创建逻辑设备
+        main queue, transfer queue是同一个。
 
+    escher::GlslangInitializeProcess();
+      glslang::InitializeProcess();
+        ShInitialize()
+          InitProcess()
+            InitializePoolIndex()
+
+            InitThread()
 \end{verbatim}

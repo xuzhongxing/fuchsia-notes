@@ -1,5 +1,5 @@
 \section{Vulkan}
-
+\begin{verbatim}
 The LunarG SDK includes the official Khronos loader (libvulkan.so), which was
 developed by LunarG.
 
@@ -25,7 +25,18 @@ zircon里还有vim display驱动，是管hdmi的。
 
 intel icd 部分
 入口函数都是自动生成的：
-\begin{verbatim}
+
+gn会生成
+$target_gen_dir/vulkan/icd.d/libvulkan_intel.json
+
+system_image.manifest文件里：
+data/vulkan/icd.d/下面是icd json文件。目前只有intel
+vulkan loader应该是根据这个json文件加载libvulkan_intel.so
+loader是怎样知道要去这个路径下找json呢，在gn里：
+"-DSYSCONFDIR=\"/system/data\"",
+
+
+
 out/x64/x64-shared/gen/third_party/mesa/src/intel/vulkan/anv_entrypoints.c
 
 anv_lookup_entrypoint()用来查找api的入口。
