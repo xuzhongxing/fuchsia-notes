@@ -1,0 +1,33 @@
+\section{printf}
+
+\begin{verbatim}
+
+
+summary: 从efi获得framebuffer信息。用framebuffer模式输出信息。
+
+
+dprintf()
+#define dprintf(level, x...) do { if ((level) <= LK_DEBUGLEVEL) { printf(x); } } while (0)
+  #define printf(x...) _printf(x)
+    _printf_engine(__printf_output_func, NULL, fmt, ap);
+      __kernel_stdout_write(s, len);
+        __kernel_console_write(str, len);
+          list_for_every_entry(&print_callbacks, cb, print_callback_t, entry) {
+            if (cb->print)
+                cb->print(cb, str, len);
+          }
+
+看看注册了哪些print callback
+platform_early_display_init(void)
+  info.framebuffer = (void*)X86_PHYS_TO_VIRT(bootloader.fb.base);
+  bits是另外一块buffer
+    // 从efi可以拿到framebuffer的base address
+    gfxconsole_bind_display(&info, bits);
+      gfx_init_surface_from_display(&hw, info)
+        gfx_init_surface(surface, info->framebuffer, info->width, info->height, info->stride, info->format, flags);
+      gfxconsole_setup(s, &hw_surface);
+      register_print_callback(&cb);
+
+        cb = gfxconsole_print_callback
+
+\end{verbatim}

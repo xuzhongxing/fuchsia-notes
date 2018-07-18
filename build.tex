@@ -1,4 +1,7 @@
 \section{Fuchsia Build}
+在toolchain定义里面的{{}}不是对变量进行取值，而是一个placeholder.
+在之后生成编译命令时展开。
+
 gn args out/x64/ --list --short
 这个命令显示所有的变量的预设值。
 
