@@ -1,5 +1,25 @@
 \section{pci}
 
+pci firmware specification rev 3.0 (pdf)
+
+The base address returned by MCFG table for a given PCI Segment group is always
+with respect to bus 0 as specified in the PCI Express Base Specification (and
+the PCI-X Specification). It is the responsibility of system software to
+calculate the start and end of the supported memory mapped configuration address
+range based on the start and end bus numbers specified in the MCFG entry. System
+software must make no assumptions about the memory range corresponding to the
+base address up to the start of the memory mapped configuration space (as
+specified by start bus number).
+
+系统会给pci的每个bus的每个device的每个function分配一个4k配置空间。最多是256MB的
+连续配置空间。这个配置空间的基地址由acpi提供。
+
+在fuchsia里只有一个pci root设备，不管有多少个bus.
+
+acpi首先通过系统调用初始化内核里的pci驱动。然后再添加devmgr里的pci驱动。
+
+每个pci设备都有一个独立的proxy进程，以及内核里的一个PciDeviceDispatcher
+
 \begin{verbatim}
 acpi_drv_create()
   get_pci_init_arg(&arg, &arg_size);

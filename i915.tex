@@ -1,0 +1,40 @@
+\section{i915}
+
+ACPI integrated graphics device opregion specification. (pdf)
+
+ASL storage register. This register is a software scratch register used by the
+system BIOS to communicate the OpRegion base address to the graphics driver.
+
+\begin{verbatim}
+
+intel_i915_bind()
+  Controller::Bind()
+    pci_config_read16(&pci_, PCI_CONFIG_DEVICE_ID, &device_id_);
+      获得device id
+    igd_opregion_.Init(&pci_);
+      pci_config_read32(pci, kIgdOpRegionAddrReg, &igd_addr);
+        从pci配置里得到opregion的地址
+      zx_vmo_create_physical(get_root_resource(),
+                                    igd_addr & ~(PAGE_SIZE - 1),
+                                    igd_opregion_pages_len_, &vmo);
+        VmObjectPhysical::Create(paddr, size, &vmo);
+          VmObjectPhysical(base, size)
+      zx::vmar::root_self()->map(0, igd_opregion_pages_, 0, igd_opregion_pages_len_,
+                                       ZX_VM_FLAG_PERM_READ | ZX_VM_FLAG_PERM_WRITE,
+                                       &igd_opregion_pages_base_);
+        vmar->Map(vmar_offset, vmo->vmo(), vmo_offset, len, map_flags, &vm_mapping);                               
+          vmar_->CreateVmMapping(vmar_offset, len, /* align_pow2 */ 0,
+                                    vmar_flags, fbl::move(vmo), vmo_offset,
+                                    arch_mmu_flags, "useralloc",
+                                    &result);
+            CreateSubVmarInternal(mapping_offset, size, align_pow2, vmar_flags, fbl::move(vmo),
+                              vmo_offset, arch_mmu_flags, name, &res);
+              VmMapping(*this, new_base, size, vmar_flags,
+                                           fbl::move(vmo), vmo_offset, arch_mmu_flags));
+              vmar->Activate();
+        igd_opregion_pages_base_存放了opregion映射后的虚拟地址                                                                
+
+
+
+
+\end{verbatim}

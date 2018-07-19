@@ -118,7 +118,7 @@ heap_init();
       heap_page_alloc(size >> PAGE_SIZE_SHIFT);
         pmm_alloc_contiguous(pages, 0, PAGE_SIZE_SHIFT, &pa, &list);
           分配物理页给内核堆
-          问题：如何保证分配的物理页不和之后的设备的mmio的地址冲突？
+          
 
 lk_primary_cpu_init_level(LK_INIT_LEVEL_HEAP, LK_INIT_LEVEL_VM - 1);
   console_init()
@@ -127,6 +127,11 @@ lk_primary_cpu_init_level(LK_INIT_LEVEL_HEAP, LK_INIT_LEVEL_VM - 1);
       history_next = 0;
 
 vm_init();
+  首先把kernel自己占用的虚拟地址区域保留起来。
+
+  保留时只是保留虚拟地址区域，并没有做页表映射，因为页表已经在start.S里映射好了。
+  
+
   ProtectRegion(aspace, region->base, region->arch_mmu_flags);
     vm_mapping->Protect(vm_mapping->base(), vm_mapping->size(), arch_mmu_flags);
       ProtectLocked(base, size, new_arch_mmu_flags);
@@ -142,7 +147,7 @@ vm_init();
     // how much to map but it's usually a fairly large chunk at the base of the kernel
     // address space.
     目的是一些需要用到物理地址的情况，比如设备内存映射，可以直接在虚拟地址和物理地址之间建立关系。
-    va = pa + PHYSMAP_BASE  ??
+    va = pa + PHYSMAP_BASE
     kernel heap也是利用这个映射区域。
     内核自己要用的其他虚拟内存，比如后面的Handle arena，都在这个区域之后映射。
     之所以Handle arena不用physmap, 是因为它用了vmo lazy commit, 用了vmo就无法用physmap.
