@@ -1,0 +1,14 @@
+默认只有dummy iommu
+
+ACPI_STATUS init(void)
+    iommu_manager_init();
+        zx_iommu_create(get_root_resource(), ZX_IOMMU_TYPE_DUMMY, &dummy, sizeof(dummy), &iommu_mgr.dummy_iommu);
+            sys_iommu_create(zx_handle_t rsrc_handle, uint32_t type,
+                             user_in_ptr<const void> desc, size_t desc_len,
+                             user_out_handle* out)
+                IommuDispatcher::Create(type,
+                                         fbl::unique_ptr<const uint8_t[]>(copied_desc.release()),
+                                         desc_len, &dispatcher, &rights);
+                    这里创建的是dummy iommu                        
+                    DummyIommu::Create(fbl::move(desc), desc_len, &iommu);  
+                        DummyIommu()

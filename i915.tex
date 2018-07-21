@@ -1,4 +1,27 @@
 \section{i915}
+intel graphics有3个配置区域
+
+1. pci config 256 bytes
+   mmadr (offset 0x10)指向第二个配置区域mmio  老的型号上mmadr的offset是0x14
+   asl storage (offset 0xfc)指向OpRegion
+   在intel atom processor e6xx series datasheet里有详细的pci configuration的布局
+
+2. mmio 的寄存器区域 512kb
+  这个参考PRM
+
+3. OpRegion
+  这个的具体布局没有找到文档，只能参考linux kernel source code.
+
+
+pci_config_read读的是pci配置区域的值
+mmio_space是i915 mmio的值
+
+
+linux里的intel_vbt_defs.h: 
+child_device_config 对应于zircon里的ddi_config
+bdb_general_definitions <=> general_definitions
+bdb_lvds_options <=> lvds_config
+
 
 ACPI integrated graphics device opregion specification. (pdf)
 
@@ -32,9 +55,122 @@ intel_i915_bind()
               VmMapping(*this, new_base, size, vmar_flags,
                                            fbl::move(vmo), vmo_offset, arch_mmu_flags));
               vmar->Activate();
-        igd_opregion_pages_base_存放了opregion映射后的虚拟地址                                                                
+        igd_opregion_pages_base_存放了opregion映射后的虚拟地址      
+      vbt_header = reinterpret_cast<vbt_header_t*>(&igd_opregion_->mailbox4);
+        拿到vbt, vbt的详细信息文档里没有。都在linux kernel里。                                                            
+      拿到bios data block header，这个文档里没写，在linux kernel源码里
+      ProcessDdiConfigs()
+        ddi_config_size是每个entry的size
+        记录hdmi, dp等port的信息
+
+      CheckForLowVoltageEdp(pci)
+        GetPanelType(pci, &panel_type_)
+          Swsci(pci, SciEntryParam::kFuncGetBiosData, SciEntryParam::kGbdaSupportedCalls,
+              0 /* unused additional_param */, &exit_param, &additional_res)
+      ProcessBacklightData();
+
+    MapPciMmio(0u, &regs, &size);
+      pci_map_bar(&pci_, pci_bar, ZX_CACHE_POLICY_UNCACHED_DEVICE,
+                                         &mapped_bars_[pci_bar].base,
+                                         &mapped_bars_[pci_bar].size,
+                                         &mapped_bars_[pci_bar].vmo);
+        pci->ops->map_bar(pci->ctx, bar_id, cache_policy, vaddr, size, out_handle);
+          pci_op_map_bar(void* ctx,           // proxy.c   
+            pci_op_get_bar(ctx, bar_id, &bar);        
+              pci_rpc_request(dev, PCI_OP_GET_BAR, &handle, &req, &resp);
+                // 向kpci进程请求BAR, 在另一个进程里：
+                kpci_get_bar(pci_msg_t* req, kpci_device_t* device, zx_handle_t ch)
+                  zx_pci_get_bar(device->handle, req->bar.id, &bar, &handle);
+                    // 进入kernel
+                    pci_device->GetBar(bar_num);
+                      device_->GetBarInfo(bar_num);
+                        pcie_bar_info_t* ret = &bars_[bar_ndx];  
+                          这个在之前PcieDevice::ProbeBarLocked(uint bar_id)里获得
+              zx_vmar_map
+                之前拿到phsical vmo, 现在映射一个虚拟地址给它。
+
+    interrupts_.Init(this);
+      pci_query_irq_mode(controller_->pci(), ZX_PCIE_IRQ_MODE_LEGACY, &irq_cnt);
+        legacy mode: irq_cnt = 1
+      pci_map_interrupt
+        拿到一个这个设备的interrupt dispatcher, 之后的irq thread就可以去wait它了。
+
+        sys_pci_map_interrupt
+          pci_device->MapInterrupt(which_irq, &interrupt_dispatcher, &rights);
+            PciInterruptDispatcher::Create(device_,
+                                          which_irq,
+                                          irqs_maskable_,
+                                          rights,
+                                          interrupt_dispatcher);
+              interrupt_dispatcher->RegisterInterruptHandler();
+                device_->RegisterIrqHandler(vector_, IrqThunk, this);                    
+
+    gtt_.Init(this)
+      pci_get_bti(controller->pci(), 0, bti_.reset_and_get_address())
+        kpci_get_bti(pci_msg_t* req, kpci_device_t* device, zx_handle_t ch)
+          pciroot_get_bti(&device->pciroot, bdf, req->bti_index, &bti)
+            pciroot_op_get_bti(void* context, uint32_t bdf, uint32_t index, zx_handle_t* bti)  // bus-apic.c
+              iommu_manager_iommu_for_bdf(bdf, &iommu_handle);
+                *iommu_h = iommu_mgr.dummy_iommu;
+                用dummy iommu
+
+              zx_bti_create(iommu_handle, 0, bdf, bti)
+                BusTransactionInitiatorDispatcher::Create(iommu_dispatcher->iommu(), bti_id,
+                                                       &dispatcher, &rights);
+      bti_.get_info(ZX_INFO_BTI, &info, sizeof(zx_info_bti_t), nullptr, nullptr);
+        sys_object_get_info
+          从dummy iommu里得到信息
+      bti_.pin(ZX_BTI_PERM_READ, scratch_buffer_, 0, PAGE_SIZE, &scratch_buffer_paddr_, 1,
+                      &scratch_buffer_pmt_);
+        bti_dispatcher->Pin(vmo_dispatcher->vmo(), offset, size, iommu_perms, &new_pmt,
+                                 &new_pmt_rights);
+          PinnedMemoryTokenDispatcher::Create(fbl::WrapRefPtr(this), fbl::move(vmo),
+                                               offset, size, perms, pmt, pmt_rights);                                    
+            vmo->CommitRange(offset, size, nullptr);
+            vmo->Pin(offset, size);
+
+            这里的大意就是：bti获得了pinned内存，并且在iommu里建立好了映射
+            因为用的是dummy iommu, 所以获得的设备虚拟地址就是物理地址
+      gen_pte_encode(scratch_buffer_paddr_);
 
 
+    DdkAdd("intel_i915");
 
 
+===========
+
+pci设备中断初始化：
+acpi_drv_create
+  get_pci_init_arg(&arg, &arg_size);
+    find_pcie_config(res);
+  sys_pci_init()
+    configure_interrupt(irq, tm, pol);
+      apic_io_configure_irq(
+        vector,
+        tm,
+        pol,
+        DELIVERY_MODE_FIXED,
+        IO_APIC_IRQ_MASK,
+        DST_MODE_PHYSICAL,
+        apic_bsp_id(),
+        0);
+        这里其实是把所有pci设备对应的global irq 从apic里mask掉
+  
+
+
+PcieDevice::InitLegacyIrqStateLocked(PcieUpstreamNode& upstream)
+  irq_.legacy.pin = cfg_->Read(PciConfig::kInterruptPin);
+  MapPinToIrqLocked(fbl::RefPtr<PcieUpstreamNode>(&upstream));
+
+  irq_.legacy.shared_handler = bus_drv_.FindLegacyIrqHandler(irq_.legacy.irq_id);
+    多个设备可能会使用相同的global irq
+
+    SharedLegacyIrqHandler::Create(irq_id);
+      SharedLegacyIrqHandler
+        register_int_handler(irq_id_, HandlerThunk, this);
+          x86_vector = apic_io_fetch_irq_vector(vector)
+            如果当前的global irq没有对应到cpu的vector上，则分配一个vector
+            p2ra_allocate_range(&x86_irq_vector_allocator, 1, &range_start);
+
+            
 \end{verbatim}
