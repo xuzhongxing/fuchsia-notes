@@ -1,0 +1,3 @@
+i915驱动引起这个驱动bind
+
+Controller::Bind(fbl::unique_ptr<display::Controller>* device_ptr)

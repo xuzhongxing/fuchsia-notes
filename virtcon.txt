@@ -1,2 +1,57 @@
 vc_display_init()
     open("/dev/class/display-controller/000/virtcon", O_RDWR)
+
+
+rebind_display()
+    allocate_vmo(size, &vmo)
+
+    import_vmo(display, vmo, &image_id)
+        i915.cpp
+        Controller::ImportVmoImage(image_t* image, const zx::vmo& vmo, size_t offset)
+            width_in_tiles(image->type, image->width, image->pixel_format)
+            gtt_.AllocRegion(length, align, &gtt_region);
+                分配一个gtt region
+            gtt_region->PopulateRegion(vmo.get(), offset / PAGE_SIZE, length);
+                把vmo对应的内存commit并且固定下来。
+                把gtt页表项设置好，也就是把graphics虚拟内存对应到vmo的物理地址上
+
+
+    create_layer(&layer_id)
+        Client::HandleCreateLayer
+            新建一个Layer
+
+    configure_layer(display, layer_id)
+        set display layer
+        这里就是设置config
+        Client::HandleSetDisplayLayers
+
+        set primary layer config
+        Client::HandleSetLayerPrimaryConfig
+            populate_image(req->image_config, &primary_layer->image);
+        设置这个layer的primary config
+
+    set_active_image(display->id, image_id)
+        Client::HandleSetLayerImage
+            layer->pending_image_ = image.CopyPointer();
+
+        Client::HandleCheckConfig
+            没有实质性动作
+
+        Client::HandleApplyConfig
+            layer_node.layer->pending_image_->PrepareFences(
+                        GetFence(layer->pending_wait_event_id_),
+                        GetFence(layer->pending_signal_event_id_));
+                        这里应该都是null
+            ApplyConfig();
+                controller_->ApplyConfig(dc_configs, dc_idx, is_vc_, client_apply_count_);
+                    image->StartPresent();
+                    ops_.ops->apply_configuration(ops_.ctx, display_configs, display_count);
+                        ReallocatePlaneBuffers(display_config, display_count)
+                            GetPlaneLayer(pipe, plane_num, display_configs, display_count, &layer)
+                                拿到相应的layer
+                            UpdateAllocations(min_allocs, data_rate);
+                        
+                        display->ApplyConfiguration(config, &regs);
+                            ConfigurePrimaryPlane(plane, primary, !!config->cc_flags, &scaler_1_claimed, regs);
+                                base_address = static_cast<uint32_t>(region->base());
+                                plane_surface.set_surface_base_addr(base_address >> plane_surface.kRShiftCount);

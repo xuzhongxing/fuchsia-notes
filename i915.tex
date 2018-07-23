@@ -1,10 +1,38 @@
 \section{i915}
-intel graphics有3个配置区域
+display controller framebuffer的设置：
+在gtt里分配一个region，然后配置好从该region的base到该vmo的映射。
+region的base实际上是从global gtt(mmadr + 8MB)开始计算的offset. 并不是一个实际的虚拟地址。
+然后设置surface的base address为该region的base.
+
+
+v3 gpu overview page 6 VGA and Extended VGA I/O and Memory Register Map
+这里的地址port io和mmio都有
+
+
+intel-gfx-prm-osrc-kbl-vol05-memory_views.pdf
+终于找到了：
+This register requests allocation for the combined Graphics Translation Table Modification Range and Memory
+Mapped Range. The range requires 16 MB combined for MMIO and Global GTT aperture, with 2MB of that used
+by MMIO, 6MB reserved, and 8MB used by GTT. GTTADR will begin at (GTTMMADR + 8 MB) while the MMIO
+base address will be the same as GTTMMADR. The region between (GTTMMADR + 2MB) - (GTTMMADR + 8MB)
+is reserved. For the Global GTT, this range is defined as a memory BAR in graphics device config space. It is an
+alias into which software is required to write Page Table Entry values (PTEs). Software may read PTE values from
+the global Graphics Translation Table (GTT). PTEs cannot be written directly into the global GTT memory area.
+The device snoops writes to this region in order to invalidate any cached translations within the various TLB's
+implemented on-chip. The allocation is for 16MB and the base address is defined by bits [38:24]. Note: Per PCI
+enumeration requirements, to determine the size of a BAR software should write all 1s to the BAR, read it back
+and see how many of the lower bits read as 0 (meaning that they didn't take the 1s). This indicates the size of the
+BAR. In order for this to work bits 63 down to the size of the BAR need to be writable to 1s.
+
+
+intel graphics有4个内存区域
 
 1. pci config 256 bytes
    mmadr (offset 0x10)指向第二个配置区域mmio  老的型号上mmadr的offset是0x14
    asl storage (offset 0xfc)指向OpRegion
    在intel atom processor e6xx series datasheet里有详细的pci configuration的布局
+
+   global gtt的地址是mmadr + 8MB
 
 2. mmio 的寄存器区域 512kb
   这个参考PRM
@@ -12,9 +40,13 @@ intel graphics有3个配置区域
 3. OpRegion
   这个的具体布局没有找到文档，只能参考linux kernel source code.
 
+4. framebuffer
+  有2个寄存器都指向fb
+  gmadr (pci config offset 0x18 bar 2)
+  bdsm (pci config offset 0x5c)
 
 pci_config_read读的是pci配置区域的值
-mmio_space是i915 mmio的值
+mmio_space是i915 mmio的虚拟地址
 
 
 linux里的intel_vbt_defs.h: 
@@ -136,7 +168,7 @@ intel_i915_bind()
 
     DdkAdd("intel_i915");
       AddProtocol()会添加DisplayControllerProtocol  ddk_proto_id_ = ZX_PROTOCOL_DISPLAY_CONTROLLER_IMPL;
-        这个会引起display controller驱动的加载
+        这个会引起display controller驱动的加载， 转display-controller.txt
       device_add(parent_, &args, &zxdev_);
 
 新线程：
@@ -145,6 +177,15 @@ Controller::FinishInit()
         BringUpDisplayEngine(false);
             Enable PCH Reset Handshake
             Wait for Power Well 0 distribution
+
+        InitDisplay(registers::kDdis[i])
+            拿一个没被使用的pipe
+            pipe = registers::PIPE_A
+        AddDisplay(fbl::move(disp_device));
+
+        ReallocatePipeBuffers(false);
+    回调display controller注册的callback
+    interrupts_.FinishInit();
 
 ===========
 
