@@ -135,7 +135,16 @@ intel_i915_bind()
 
 
     DdkAdd("intel_i915");
+      AddProtocol()会添加DisplayControllerProtocol  ddk_proto_id_ = ZX_PROTOCOL_DISPLAY_CONTROLLER_IMPL;
+        这个会引起display controller驱动的加载
+      device_add(parent_, &args, &zxdev_);
 
+新线程：
+Controller::FinishInit()
+    InitDisplays();
+        BringUpDisplayEngine(false);
+            Enable PCH Reset Handshake
+            Wait for Power Well 0 distribution
 
 ===========
 

@@ -58,7 +58,21 @@ x64:
       bootloader.uart.irq = ISA_IRQ_SERIAL1;
     uart_io_port = static_cast<uint32_t>(bootloader.uart.base);
     uart_irq = bootloader.uart.irq;
+  
   platform_early_display_init();
+    gfxconsole_bind_display(&info, bits);
+      gfx_init_surface_from_display(&hw, info)
+        gfx_init_surface(surface, info->framebuffer, info->width, info->height, info->stride, info->format, flags);
+      
+      gfx_init_surface(&sw_surface, raw_sw_fb, hw_surface.width,hw_surface.height, hw_surface.stride, hw_surface.format, 0)
+        注册一些画图的函数
+      gfxconsole_setup(s, &hw_surface);
+
+      gfxconsole_clear(false);          
+
+
+
+
   boot_reserve_init();
     boot_reserve_add_range(get_kernel_base_phys(), get_kernel_size());
   platform_preserve_ramdisk();

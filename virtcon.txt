@@ -1,0 +1,2 @@
+vc_display_init()
+    open("/dev/class/display-controller/000/virtcon", O_RDWR)

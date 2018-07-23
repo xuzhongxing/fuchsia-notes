@@ -1,0 +1,45 @@
+sysdrv_bind()
+    首先拿到i915_gpu_core_protocol_ops
+
+    device->magma_driver = MagmaDriver::Create();
+        msd_driver_create();
+            MsdIntelDriver::Create().release();
+                MsdIntelDriver()
+
+    magma_start(device.get());
+        device->magma_driver->CreateDevice(&device->gpu_core_protocol);
+            msd_driver_create_device(msd_drv_.get(), device);
+                MsdIntelDevice::Create(device_handle, start_device_thread);
+                    device->Init(device_handle)
+                        BaseInit(device_handle)
+                            MsdIntelPciDevice::CreateShim(device_handle);
+                                MsdIntelPciDeviceShim(zx_intel_gpu_core_protocol_t* intel_gpu_core)
+                            
+                            读取pci config里的device id, revision
+                            映射pci设备的mmio
+
+                            magma::PlatformBusMapper::Create(platform_device_->GetBusTransactionInitiator());
+                                这个好像是映射内存用的？
+                            platform_device_是 MsdIntelPciDeviceShim
+
+                            QuerySliceInfo(&subslice_total_, &eu_total_);
+                            InterruptManager::CreateShim(this);
+                            PerProcessGtt::InitPrivatePat(register_io_.get());
+                            Gtt::CreateShim(this)
+                            Sequencer(kFirstSequenceNumber)
+
+                            RenderEngineCommandStreamer::Create(this);
+                                Scheduler::CreateFifoScheduler();
+                            render_engine_cs_->InitContext(global_context_.get())
+                                GetContextSize()
+                                  // page size * 20
+                                MsdIntelBuffer::Create(context_size, "context-buffer")
+                                    magma::PlatformBuffer::Create(size, name);
+                                    创建context buffer
+                                        zx::vmo::create(size, 0, &vmo);
+                                Ringbuffer(MsdIntelBuffer::Create(32 * PAGE_SIZE, "ring-buffer")
+                                    创建ring buffer
+
+                                InitContextBuffer(context_buffer.get(), ringbuffer.get(), context->exec_address_space().get()))    
+
+                            global_context_->Map(gtt_, render_engine_cs_->id())
