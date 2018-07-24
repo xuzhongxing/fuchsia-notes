@@ -1,4 +1,12 @@
 \section{i915}
+display device 添加的逻辑：
+在finishinit()里，对每个ddi (abcde)
+  先获得一个没占用的pipe 共3个：abc
+  然后根据这个ddi支持的设备类型，生成一个dp或者hdmi、
+  应该是有显示器连接的ddi才会成功创建设备
+
+
+
 display controller framebuffer的设置：
 在gtt里分配一个region，然后配置好从该region的base到该vmo的映射。
 region的base实际上是从global gtt(mmadr + 8MB)开始计算的offset. 并不是一个实际的虚拟地址。

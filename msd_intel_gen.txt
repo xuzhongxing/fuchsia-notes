@@ -41,5 +41,21 @@ sysdrv_bind()
                                     创建ring buffer
 
                                 InitContextBuffer(context_buffer.get(), ringbuffer.get(), context->exec_address_space().get()))    
+                                    platform_buf->MapCpu(&addr)
+                                        把vmo映射好，
+                                        映射后的地址往后挪4k作为state是什么意思？
+                                        mmio_ = 8192是什么意思
+
+                                        要看看文档，这里的寄存器都是干什么的
+
+                                context->SetEngineState(id(), std::move(context_buffer), std::move(ringbuffer));
+                                    做PerEngineState放入global_context
 
                             global_context_->Map(gtt_, render_engine_cs_->id())
+                                地址空间类型ADDRESS_SPACE_GGTT
+                                把context buffer, ring buffer映射给GGTT
+
+                        RenderEngineInit(true)
+                            render_engine_cs_->InitHardware();
+                            render_engine_cs_->CreateRenderInitBatch(device_id_);
+                            render_engine_cs_->RenderInit(global_context_, std::move(init_batch), gtt_))

@@ -1,8 +1,15 @@
+
+
+
 vc_display_init()
     open("/dev/class/display-controller/000/virtcon", O_RDWR)
 
 
 rebind_display()
+    任选一个display, 在后面Controller::ApplyConfiguration里，
+    如果device id对不上会跳过
+
+
     allocate_vmo(size, &vmo)
 
     import_vmo(display, vmo, &image_id)
