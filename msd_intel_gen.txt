@@ -43,10 +43,11 @@ sysdrv_bind()
                                 InitContextBuffer(context_buffer.get(), ringbuffer.get(), context->exec_address_space().get()))    
                                     platform_buf->MapCpu(&addr)
                                         把vmo映射好，
-                                        映射后的地址往后挪4k作为state是什么意思？
-                                        mmio_ = 8192是什么意思
+                                        context buffer的布局在vol6 command stream programming, page 17
+                                        第一个4k页是per-process hw status page.
+                                        mmio_ = 8192的意思是：用0x02000h作为所有寄存器的base. 这样在指定地址时只需要指定低12位。
 
-                                        要看看文档，这里的寄存器都是干什么的
+                                        register state context存放了一些mmio register的偏移量。
 
                                 context->SetEngineState(id(), std::move(context_buffer), std::move(ringbuffer));
                                     做PerEngineState放入global_context
@@ -55,7 +56,38 @@ sysdrv_bind()
                                 地址空间类型ADDRESS_SPACE_GGTT
                                 把context buffer, ring buffer映射给GGTT
 
+                                MsdIntelContext::Map(address_space, id)
+                                GetGpuAddress(id, &gpu_addr)
+                                get_context_buffer(id)->platform_buffer()->MapCpu(&cpu_addr)
+
+                                hardware status page实际上就是context buffer映射的ggtt offset
+
                         RenderEngineInit(true)
                             render_engine_cs_->InitHardware();
+                                把hardware status page的gpu地址写到0x2080  Hardware Status Page Address Register
+                                把sequence number写道hardware status page的offset 0x20处。这个在公开文档里写的是
+                                Ring Head Pointer Storage。代码里注释是superNDA
+
+                                execlist enable
+                                设置各种寄存器
+
+
                             render_engine_cs_->CreateRenderInitBatch(device_id_);
+
                             render_engine_cs_->RenderInit(global_context_, std::move(init_batch), gtt_))
+                                MsdIntelBuffer::Create(init_batch->size(), "render-init-batch"));
+                                    新建一个buffer
+                                init_batch->Init(std::move(buffer), address_space);
+                                    用这个buffer来创建batch context
+                                    这里要把新的地址写到相应的位置reloc
+
+                                ExecBatch(std::move(mapped_batch));
+                                    MoveBatchToInflight(std::move(mapped_batch)
+                                        StartBatchBuffer(context.get(), gpu_addr, context->exec_address_space()->type())
+
+                                    SubmitContext(context.get(), inflight_command_sequences_.back().ringbuffer_offset());
+                                        UpdateContext(context, tail)
+                                            tail是在ring buffer内部的tail offset
+                                            gpuaddr是ring buffer在gtt里的偏移量
+
+                                        SubmitExeclists(context);
