@@ -230,5 +230,15 @@ PcieDevice::InitLegacyIrqStateLocked(PcieUpstreamNode& upstream)
             如果当前的global irq没有对应到cpu的vector上，则分配一个vector
             p2ra_allocate_range(&x86_irq_vector_allocator, 1, &range_start);
 
-            
+====
+
+garnet里应该不是用applyconfig来更新plane surface的base address
+
+Controller::ApplyConfig
+
+Controller::ApplyConfiguration
+    DisplayDevice::ApplyConfiguration
+        DisplayDevice::ConfigurePrimaryPlane
+            plane_surface.set_surface_base_addr
+
 \end{verbatim}

@@ -91,3 +91,7 @@ sysdrv_bind()
                                             gpuaddr是ring buffer在gtt里的偏移量
 
                                         SubmitExeclists(context);
+
+                    device->StartDeviceThread();
+                        std::thread([this] { this->DeviceThreadLoop(); });
+                              线程循环处理请求队列

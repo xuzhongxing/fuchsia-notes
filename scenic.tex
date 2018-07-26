@@ -102,6 +102,7 @@ GfxSystem::Initialize()
             这个会返回false, failed to open display controller
           VkIcdSurfaceBase_to_handle(&surface->base);
             定义在third_party/mesa/src/vulkan/wsi/wsi_common.h
+              是个指针或者uint64
 
     escher::VulkanDeviceQueues::New(vulkan_instance_, device_queues_params);
       FindSuitablePhysicalDeviceAndQueueFamilies(instance, params);
@@ -118,4 +119,25 @@ GfxSystem::Initialize()
             InitThread()
     Escher::Escher(VulkanDeviceQueuesPtr device)
       escher有一堆成员
+
+
+  InitializeEngine();
+      escher::PaperRenderer::New(escher_)
+
+      escher::ShadowMapRenderer::New(escher_, paper_renderer_->model_data(),
+                                         paper_renderer_->model_renderer())
+
+      std::make_unique<SessionManager>()
+
+      InitializeFrameScheduler();
+
+
+====
+
+scenic_->RegisterSystem<SketchySystem>(scenic);
+
+
+
+
+
 \end{verbatim}
