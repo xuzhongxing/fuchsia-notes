@@ -1,2 +1,13 @@
 main()
-    
+    ScreenshotTaker taker(&loop, output_screen);
+        context_->ConnectToEnvironmentService<fuchsia::ui::scenic::Scenic>();
+    taker.TakeScreenshot();
+        TakeScreenshotInternal()
+            scenic_->TakeScreenshot(cb)
+
+scenic app:
+
+GfxSystem::TakeScreenshot(fuchsia::ui::scenic::Scenic::TakeScreenshotCallback callback)
+    Screenshotter screenshotter(engine_.get());
+    screenshotter.TakeScreenshot(std::move(callback));
+        compositor = engine_->GetFirstCompositor();

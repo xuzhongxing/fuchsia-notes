@@ -1,0 +1,43 @@
+view_manager::ViewManagerApp app;
+  new ViewRegistry(startup_context_.get())
+    startup_context_->ConnectToEnvironmentService<fuchsia::ui::scenic::Scenic>()
+
+    Session::Session(fuchsia::ui::scenic::Scenic* scenic)
+        scenic->CreateSession(session_.NewRequest(), session_listener_binding_.NewBinding());
+
+
+进入scenic进程：
+Scenic::CreateSession()
+    CreateSessionImmediately(std::move(session_request), std::move(listener));
+        Session::Session()
+
+        system->CreateCommandDispatcher(CommandDispatcherContext(this, session.get()));
+        GfxSystem::CreateCommandDispatcher()
+            engine_->session_manager()->CreateCommandDispatcher(std::move(context),engine_.get());
+
+        session_bindings_.AddBinding(std::move(session), std::move(session_request));
+            开始监听了
+
+
+
+========
+
+
+ViewRegistry::CreateView
+    new ViewState(this, std::move(view_token), std::move(view_request), std::move(view_listener), &session_, SanitizeLabel(label));
+
+    SchedulePresentSession();
+        ViewRegistry::PresentSession()
+            session_.Present(0, [this](fuchsia::images::PresentationInfo info) {});
+                session_->Present(presentation_time, std::move(acquire_fences_),
+                    std::move(release_fences_), std::move(callback));
+========
+Scenic:
+Session::Present
+    delegate->Present(presentation_time, std::move(acquire_fences), std::move(release_fences), std::move(callback));
+        SessionHandler::Present
+            session_->ScheduleUpdate
+                weak->engine_->session_manager()->ScheduleUpdateForSession
+                    update_scheduler->ScheduleUpdate(presentation_time);
+                        RenderFrame(FrameTimingsPtr(), presentation_time, 0, false);
+                            Compositor::DrawFrame

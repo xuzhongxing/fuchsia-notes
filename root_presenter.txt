@@ -1,0 +1,46 @@
+root_presenter::App app(command_line);
+
+====
+
+App::PresentView
+    InitializeServices();
+        连接view manager
+        连接scenic
+        scenic->CreateSession  创建session
+
+        DisplayCompositor::DisplayCompositor(Session* session) : Resource(session)
+            session->Enqueue(NewCreateDisplayCompositorCmd(id()));
+
+        compositor_->SetLayerStack(*layer_stack_.get());
+        session_->Present(0, [](fuchsia::images::PresentationInfo info) {});
+            Flush();
+                session_->Enqueue(std::move(commands_));
+                scenic端的session:
+                Session::Enqueue
+                    SessionHandler::DispatchCommand
+                        buffered_commands_.emplace_back(std::move(command.gfx()));
+
+            session_->Present(presentation_time, std::move(acquire_fences_),
+                    std::move(release_fences_), std::move(callback));
+
+                scenic端的session:
+                delegate->Present(presentation_time, std::move(acquire_fences), std::move(release_fences), std::move(callback));
+                    session_->ScheduleUpdate(presentation_time, std::move(buffered_commands_), std::move(acquire_fences), std::move(release_fences), std::move(callback))
+                        engine()->frame_scheduler()->ComputeTargetPresentationAndWakeupTimes(requested_presentation_time);
+
+                        engine()->display_manager()->default_display()->GetVsyncInterval();
+
+                        scheduled_updates_.push(
+                            Update{requested_presentation_time, std::move(commands),
+                                   std::move(acquire_fence_set), std::move(release_events),
+                                    std::move(callback)});
+    Presentation2::Presentation2
+        session->Enqueue(NewCreateLayerCmd(id()));
+        session->Enqueue(NewCreateRendererCmd(id()));
+    presentation->PresentView(std::move(presentation_request), GetYieldCallback(), GetShutdownCallback(presentation.get()));                                
+
+
+
+
+
+

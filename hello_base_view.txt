@@ -1,0 +1,19 @@
+main
+    scenic::CreateScenicSessionPtrAndListenerRequest(scenic.get()),
+        scenic->CreateSession(session.NewRequest(), listener_handle.Bind());
+            In scenic process:
+            CreateSessionImmediately(std::move(session_request), std::move(listener));
+
+    ShadertoyEmbedderView::ShadertoyEmbedderView
+        BaseView::BaseView(
+            View::View
+                session->Enqueue(NewCreateViewCmd(id(), std::move(token), debug_name));
+                    SystemTypeForCmd(cmd);
+                    SessionHandler::DispatchCommand
+                        buffered_commands_.emplace_back(std::move(command.gfx()));
+                            把createview cmd放入buffer
+
+    root_presenter->PresentView(std::move(view_holder_token), nullptr);
+
+    view->LaunchShadertoyClient();
+        转入root presenter进程
