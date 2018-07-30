@@ -37,10 +37,30 @@ App::PresentView
     Presentation2::Presentation2
         session->Enqueue(NewCreateLayerCmd(id()));
         session->Enqueue(NewCreateRendererCmd(id()));
+
+        入队了很多命令
+
     presentation->PresentView(std::move(presentation_request), GetYieldCallback(), GetShutdownCallback(presentation.get()));                                
+        scenic_->GetDisplayInfo
+            scenic进程：
+            delegate->GetDisplayInfo(std::move(callback));
+            得到w,h
 
+        weak->InitializeDisplayModel(std::move(display_info));
+            display_configuration::InitializeModelForDisplay(display_info.width_in_px, 
+                                                                display_info.height_in_px, 
+                                                                &display_model_actual_);
 
+        weak->PresentScene();
+            session()->Enqueue(NewSetDisableClippingCmd(id(), disable_clipping));
 
+            session_->Present(0, cb)
+                Scenic process:
+                SessionHandler::Present
+                    session_->ScheduleUpdate
+                        scheduled_updates_.push
+
+            self->PresentScene();
 
 
 

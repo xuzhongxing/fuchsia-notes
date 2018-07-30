@@ -14,6 +14,16 @@ main
                             把createview cmd放入buffer
 
     root_presenter->PresentView(std::move(view_holder_token), nullptr);
+        转入root presenter进程
 
     view->LaunchShadertoyClient();
-        转入root presenter进程
+        LaunchAppAndCreateView("shadertoy_client");
+            zx::eventpair::create(0u, &view_holder_token, &view_token);
+
+
+            info.view_provider->CreateView(std::move(view_token),
+                                 info.services_from_child_view.NewRequest(),
+                                 std::move(services_to_child_view));
+                rpc调用shadertoy里的CreateView
+
+

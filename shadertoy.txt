@@ -1,0 +1,85 @@
+main
+
+
+rpc:
+
+ViewProviderService::CreateView
+    CreateScenicSessionPtrAndListenerRequest(scenic_)
+
+        scenic->CreateSession(session.NewRequest(), listener_handle.Bind());
+        CreateSession(::fidl::InterfaceRequest<Session> session, ::fidl::InterfaceHandle<SessionListener> listener)
+
+
+    view_factory_(std::move(args));
+    shadertoy_client::NewView(args)
+        scenic::BaseView(args.startup_context,
+                       std::move(args.session_and_listener_request),  // 通向scenic session
+                       std::move(args.view_token), debug_name),
+
+        ViewImpl::ViewImpl() 
+            shadertoy_factory_->NewImagePipeShadertoy(shadertoy_.NewRequest(),
+                                            std::move(image_pipe_handle));
+                shadertoyfactory process:
+                    添加binding
+                    image_pipe bind, 另一头在shadertoy client里通过session()->Enqueue(scenic::NewCreateImagePipeCmd交给Scenic了。
+
+            shadertoy_->SetResolution
+                ShadertoyStateForImagePipe::OnSetResolution
+                    ClearFramebuffers();
+                    Framebuffer::Framebuffer
+                        info.pAttachments = image_views_.data();
+                        device.createFramebuffer(info)
+                            把image绑定到framebuffer上了
+                            后面render就会画到这个image上
+
+
+
+                    image_pipe_->AddImage(VK_DEVICE_MEMORY)
+                        scenic进程：
+                        ImagePipe::AddImage
+                            GpuMemory::New
+                            CreateImage
+                                    
+
+            shadertoy_->SetShaderCode
+
+            shadertoy_->SetPaused(false);
+
+
+
+       InvalidateScene();
+
+    
+
+====
+shadertoy service process:
+
+ShadertoyState::SetShaderCode
+    compile callback:
+    compiler_->Compile
+        compiler_->Compile // 生成pipeline
+    glsl编译好了就开始render
+        weak->RequestFrame(0);
+            DrawFrame(presentation_time, stopwatch_.GetElapsedSeconds());
+            ShadertoyStateForImagePipe::DrawFrame
+                renderer()->DrawFrame(fb.framebuffer, pipeline(), params, channel0(),
+                        channel1(), channel2(), channel3(),
+                        fb.release_semaphore, fb.acquire_semaphore);
+
+
+                    escher()->NewFrame("Shadertoy Renderer", ++frame_number_);    // 这个是本地的escher
+                        frame_manager_->NewFrame
+                            frame->BeginFrame();
+                                CommandBuffer::NewForGraphics(escher());
+                    GetUpdatedDescriptorSet(frame, channel0, channel1, channel2, channel3);
+
+                    command_buffer->BeginRenderPass(
+                        command_buffer_.beginRenderPass
+
+                    command_buffer->EndRenderPass();
+                        frame->EndFrame
+                            command_buffer_->Submit
+
+                image_pipe_->PresentImage
+                    在scenic进程：
+                    image_pipe_->PresentImage
