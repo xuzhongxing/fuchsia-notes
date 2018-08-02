@@ -1,1 +1,195 @@
-magma
+vulkan implementation
+
+VK_LOADER_DATA的定义在garnet/public/lib/escher/third_party/vulkansdk/x86_64/include/vulkan/vk_icd.h
+
+anv_CreateInstance
+    vk_alloc2(&default_alloc, pAllocator, sizeof(*instance), 8, VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+        vk_alloc(parent_alloc, size, align, scope);
+            alloc->pfnAllocation(alloc->pUserData, size, align, scope);
+                default_alloc_func(void *pUserData, size_t size, size_t align, VkSystemAllocationScope allocationScope)
+                    malloc(size);
+
+    
+anv_EnumeratePhysicalDevices
+    anv_enumerate_devices(instance)
+        anv_physical_device_init(&instance->physicalDevice, instance, name)
+            anv_gem_get_param(fd, I915_PARAM_CHIPSET_ID) // anv_magma.cc, 不是anv_gem.cc里那个
+                magma_query(fd, MAGMA_QUERY_DEVICE_ID, &value);
+                
+            gen_get_device_name(device->chipset_id);    
+
+            anv_physical_device_init_heaps(device, fd); 
+                anv_compute_heap_size
+                    anv_gem_get_context_param(fd, 0, I915_CONTEXT_PARAM_GTT_SIZE,
+                        magma_query(fd, kMsdIntelGenQueryGttSize, value);
+                            fdio_ioctl(fd, IOCTL_MAGMA_QUERY, &id, sizeof(uint64_t), value_out, sizeof(uint64_t));
+                                device->magma_system_device->Query(*param, value_out))
+                                    msd_device_query(msd_dev(), id, value_out);
+                                        *value_out = 1ul << 48;
+
+            device->compiler = brw_compiler_create(NULL, &device->info);
+
+            isl_device_init(&device->isl_dev, &device->info, swizzled);
+
+            anv_init_wsi(device);
+                wsi_magma_init_wsi(&physical_device->wsi_device, &physical_device->instance->alloc,&wsi_magma_cbs);
+                    WsiMagma(callbacks);
+
+
+anv_CreateDevice
+    vk_alloc2
+    device->fd = open(physical_device->path, O_RDONLY);
+
+    anv_gem_connect(device)
+        connection = magma_create_connection(device->fd, MAGMA_CAPABILITY_RENDERING);
+            magma::PlatformIpcConnection::Create(device_handles[0], device_handles[1]).release();
+                ZirconPlatformIpcConnection()   <===> PlatformConnection::Create ---- ZirconPlatformConnection
+                                                       delegate = MagmaSystemConnection
+
+    device->context_id = anv_gem_create_context(device);
+        magma_create_context(magma_connection(device), &context_id);
+            MagmaSystemConnection::CreateContext(uint32_t context_id)
+                msd_connection_create_context(msd_connection());
+                    MsdIntelAbiContext()
+
+    anv_bo_pool_init(&device->batch_bo_pool, device);
+
+    anv_device_init_trivial_batch(device);
+        anv_bo_init_new(&device->trivial_batch_bo, device, 4096);
+            anv_gem_create(device, size);
+                magma_create_buffer(magma_connection(device), magma_size, &magma_size, &buffer)
+                    magma::PlatformBuffer::Create(size, "magma_create_buffer");
+                        zx::vmo::create(size, 0, &vmo);
+                            magma::PlatformIpcConnection::cast(connection)->ImportBuffer(platform_buffer.get());
+                                在driver里导入一个vmo
+                                MagmaSystemConnection::ImportBuffer
+
+            anv_bo_init(bo, gem_handle, size);
+        anv_gem_mmap(device, device->trivial_batch_bo.gem_handle, 0, 4096, 0);
+            magma_map(magma_connection(device), handle, &addr);
+                platform_buffer->MapCpu(addr_out))
+
+        anv_batch_emit(&batch, GEN7_MI_BATCH_BUFFER_END, bbe);
+            bbe = GEN7_MI_BATCH_BUFFER_END_header
+            *_dst = anv_batch_emit_dwords(batch, __anv_cmd_length(cmd))
+            GEN7_MI_BATCH_BUFFER_END_pack(batch, _dst, &bbe);
+
+            写2个简单命令进去
+
+    anv_queue_init(device, &device->queue);
+
+    gen10_init_device_state(device);
+        genX(init_device_state)(struct anv_device *device)
+            anv_device_submit_simple_batch(device, &batch);
+                anv_bo_pool_alloc(&device->batch_bo_pool, &bo, size);
+                    anv_bo_init_new(&new_bo, pool->device, pow2_size);
+                        anv_gem_create(device, size);
+                            magma_create_buffer(magma_connection(device), magma_size, &magma_size, &buffer)
+                        anv_bo_init(bo, gem_handle, size);
+                    new_bo.map = anv_gem_mmap(pool->device, new_bo.gem_handle, 0, pow2_size, 0);
+
+                memcpy(bo.map, batch->start, size);
+                    把batch buffer拷贝到新建的bo里
+                
+                anv_device_execbuf(device, &execbuf, exec_bos);
+                    anv_gem_execbuffer(device, execbuf);
+                        DrmCommandBuffer::RequiredSize(execbuf, syncobj_count);
+
+                        magma_create_command_buffer(magma_connection(device), required_size, &cmd_buf_id);
+                            magma::PlatformBuffer::Create(size, "magma_command_buffer");
+                            platform_buffer->MapCpu(&data);
+                            创建command buffer
+                        magma_map(magma_connection(device), cmd_buf_id, &cmd_buf_data);
+                            映射好
+                        DrmCommandBuffer::Translate(execbuf, std::move(wait_semaphore_ids), std::move(signal_semaphore_ids), cmd_buf_data)
+                        magma_submit_command_buffer(magma_connection(device), cmd_buf_id, device->context_id);
+                            interpreter.Initialize()
+                            magma::PlatformIpcConnection::cast(connection)->ExecuteCommandBuffer(buffer_handle, context_id);
+                                ===>
+                                delegate_->ExecuteCommandBuffer
+                                    MagmaSystemConnection::ExecuteCommandBuffer
+                                        MagmaSystemContext::ExecuteCommandBuffer
+                                            msd_context_execute_command_buffer(msd_ctx(), cmd_buf->system_buffer()->msd_buf(), msd_resources.data(),msd_wait_semaphores.data(), msd_signal_semaphores.data());
+                                                CommandBuffer::Create
+                                                    CommandBuffer::CommandBuffer
+                                                    command_buffer->Initialize()
+                                                        magma::CommandBuffer::Initialize()
+
+                                                    command_buffer->InitializeResources
+                                                        exec_resources_.emplace_back
+                                                
+                                                context->ExecuteCommandBuffer(std::move(command_buffer));
+                                                    SubmitPendingCommandBuffer(true);
+                                                        connection->SubmitCommandBuffer(std::move(command_buffer));
+                                                            owner_->SubmitCommandBuffer(std::move(cmd_buf));
+                                                            MsdIntelDevice::SubmitCommandBuffer(std::unique_ptr<CommandBuffer> command_buffer)
+                                                                EnqueueDeviceRequest(std::make_unique<CommandBufferRequest>(std::move(command_buffer)));
+                                                                device_request_semaphore_->Signal();
+MsdIntelDevice::DeviceThreadLoop()
+    这里在等待那个semaphore
+
+    ProcessAndReply(Processor* processor)
+        device->ProcessCommandBuffer(std::move(command_buffer_));
+            command_buffer->PrepareForExecution
+                address_space = locked_context_->exec_address_space();
+                    这个是ppgtt
+
+
+                engine->InitContext(locked_context_.get()
+                    context->SetEngineState(id(), std::move(context_buffer), std::move(ringbuffer));
+
+                locked_context_->Map(global_gtt, engine->id())
+                    state.context_mapping = AddressSpace::MapBufferGpu(address_space, state.context_buffer);
+                        把state.context_buffer映射到ggtt里。
+
+                MapResourcesGpu(address_space, exec_resource_mappings_)
+
+                PatchRelocations(exec_resource_mappings_)
+                    PatchRelocation(reloc, &exec_resources_[res_index], mapping->gpu_addr())
+
+            render_engine_cs_->SubmitCommandBuffer(std::move(command_buffer));
+                ScheduleContext();
+                    MoveBatchToInflight(std::move(mapped_batch)
+                        mapped_batch->GetGpuAddress(&gpu_addr)
+                        StartBatchBuffer(context.get(), gpu_addr, context->exec_address_space()->type())
+                            MiBatchBufferStart::write(ringbuffer, gpu_addr, address_space_type);
+
+                    SubmitContext(context.get(), inflight_command_sequences_.back().ringbuffer_offset());
+                        UpdateContext(context, tail)
+                        SubmitExeclists(context);
+                            context->GetGpuAddress(id(), &gpu_addr))
+                                state.context_mapping->gpu_addr();
+
+                                提交的实际上是context buffer的地址
+
+                anv_device_wait(device, &bo, INT64_MAX);
+
+
+anv_CreateImageView
+    vk_zalloc2
+
+    
+anv_CreateFramebuffer
+
+anv_QueueSubmit
+    anv_cmd_buffer_execbuf
+        anv_device_execbuf
+
+CmdDraw
+    cmd_buffer_flush_state
+        flush_descriptor_sets(cmd_buffer)
+            genX(cmd_buffer_emit_state_base_address)(cmd_buffer);
+
+            
+            emit_binding_table(cmd_buffer, s, &cmd_buffer->state.binding_tables[s]);
+                anv_cmd_buffer_alloc_binding_table
+
+                add_surface_state_reloc(cmd_buffer, surface_state,
+                                 desc->buffer_view->bo,
+                                 desc->buffer_view->offset);
+
+
+        cmd_buffer_emit_descriptor_pointers
+
+anv_gem_execbuffer
+    DrmCommandBuffer::RequiredSize(execbuf, syncobj_count);
