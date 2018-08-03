@@ -42,6 +42,7 @@ App::PresentView
 
     presentation->PresentView(std::move(presentation_request), GetYieldCallback(), GetShutdownCallback(presentation.get()));                                
         scenic_->GetDisplayInfo
+            ====>
             scenic进程：
             delegate->GetDisplayInfo(std::move(callback));
             得到w,h
@@ -55,6 +56,7 @@ App::PresentView
             session()->Enqueue(NewSetDisableClippingCmd(id(), disable_clipping));
 
             session_->Present(0, cb)
+                ====>
                 Scenic process:
                 SessionHandler::Present
                     session_->ScheduleUpdate

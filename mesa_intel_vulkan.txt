@@ -156,6 +156,10 @@ MsdIntelDevice::DeviceThreadLoop()
 
                     SubmitContext(context.get(), inflight_command_sequences_.back().ringbuffer_offset());
                         UpdateContext(context, tail)
+                            helper.write_ring_tail_pointer(tail);
+                            helper.write_ring_buffer_start(gpu_addr);
+                                把ringbuffer的地址写入buffer context
+
                         SubmitExeclists(context);
                             context->GetGpuAddress(id(), &gpu_addr))
                                 state.context_mapping->gpu_addr();
