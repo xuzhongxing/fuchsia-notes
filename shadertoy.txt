@@ -17,70 +17,83 @@ ViewProviderService::CreateView
                        std::move(args.view_token), debug_name),
 
         ViewImpl::ViewImpl() 
-            shadertoy_factory_->NewImagePipeShadertoy(shadertoy_.NewRequest(),
-                                            std::move(image_pipe_handle));
-                shadertoyfactory process:
-                    添加binding
-                    image_pipe bind, 另一头在shadertoy client里通过session()->Enqueue(scenic::NewCreateImagePipeCmd交给Scenic了。
+            image pipe的客户端是shadertoy, 服务端是scenic
+
+
+            shadertoy_factory_->NewImagePipeShadertoy(shadertoy_.NewRequest(), std::move(image_pipe_handle));
+                ====> shadertoy service:
+                添加binding
+                image_pipe bind, 另一头在shadertoy client里通过session()->Enqueue(scenic::NewCreateImagePipeCmd交给Scenic了。
 
             shadertoy_->SetResolution
-                ShadertoyStateForImagePipe::OnSetResolution
-                    ClearFramebuffers();
-                    Framebuffer::Framebuffer
-                        info.pAttachments = image_views_.data();
-                        device.createFramebuffer(info)
-                            把image绑定到framebuffer上了
-                            后面render就会画到这个image上
+                ====> shadertoy service:
+                ShadertoyState::SetResolution
+                    ShadertoyStateForImagePipe::OnSetResolution
+                        ClearFramebuffers();
+                        Framebuffer::Framebuffer
+                            info.pAttachments = image_views_.data();
+                            device.createFramebuffer(info)
+                                把image绑定到framebuffer上了
+                                后面render就会画到这个image上
 
+                        image_pipe_->AddImage(fb.image_pipe_id, std::move(image_info), std::move(vmo),fuchsia::images::MemoryType::VK_DEVICE_MEMORY, image->memory_offset());
+                            ====> scenic
+                            images_.AddResource(image_id, image)
 
-
-                    image_pipe_->AddImage(VK_DEVICE_MEMORY)
-                        scenic进程：
-                        ImagePipe::AddImage
-                            GpuMemory::New
-                            CreateImage
-                                    
+                    RequestFrame(0);
+                        DrawFrame(presentation_time, stopwatch_.GetElapsedSeconds());
+                            image_pipe_->PresentImage
+                                ====> shadertoy service async loop
+                                callback:
+                                    self->OnFramePresented(std::move(info));
+                                        ShadertoyState::OnFramePresented
+                                            RequestFrame(info.presentation_time + info.presentation_interval);
+                                                建立了request循环
 
             shadertoy_->SetShaderCode
+            ====> shadertoy service:
+            ShadertoyState::SetShaderCode
+                compile callback:
+                compiler_->Compile
+                    compiler_->Compile // 生成pipeline
+                glsl编译好了就开始render
+                    weak->RequestFrame(0);
+                        DrawFrame(presentation_time, stopwatch_.GetElapsedSeconds());
+                            renderer()->DrawFrame(fb.framebuffer, pipeline(), params, channel0(),
+                                    channel1(), channel2(), channel3(),
+                                    fb.release_semaphore, fb.acquire_semaphore);
+
+
+                                escher()->NewFrame("Shadertoy Renderer", ++frame_number_);    // 这个是本地的escher
+                                    frame_manager_->NewFrame
+                                        frame->BeginFrame();
+                                            CommandBuffer::NewForGraphics(escher());
+                                GetUpdatedDescriptorSet(frame, channel0, channel1, channel2, channel3);
+
+                                command_buffer->BeginRenderPass(
+                                    command_buffer_.beginRenderPass
+
+                                command_buffer->EndRenderPass();
+                                    frame->EndFrame
+                                        command_buffer_->Submit
+
+                            image_pipe_->PresentImage
+                                ====>
+                                在scenic进程：
+                                image_pipe_->PresentImage
 
             shadertoy_->SetPaused(false);
+            ====> shadertoy service
+                RequestFrame(0);
+
+
+            // Create a rounded-rect shape to display the Shadertoy image on.
+            把image pipe接入一个material, 然后放入一个RoundedRectangle，放入root node.
 
 
 
        InvalidateScene();
-
-    
-
-====
-shadertoy service process:
-
-ShadertoyState::SetShaderCode
-    compile callback:
-    compiler_->Compile
-        compiler_->Compile // 生成pipeline
-    glsl编译好了就开始render
-        weak->RequestFrame(0);
-            DrawFrame(presentation_time, stopwatch_.GetElapsedSeconds());
-            ShadertoyStateForImagePipe::DrawFrame
-                renderer()->DrawFrame(fb.framebuffer, pipeline(), params, channel0(),
-                        channel1(), channel2(), channel3(),
-                        fb.release_semaphore, fb.acquire_semaphore);
-
-
-                    escher()->NewFrame("Shadertoy Renderer", ++frame_number_);    // 这个是本地的escher
-                        frame_manager_->NewFrame
-                            frame->BeginFrame();
-                                CommandBuffer::NewForGraphics(escher());
-                    GetUpdatedDescriptorSet(frame, channel0, channel1, channel2, channel3);
-
-                    command_buffer->BeginRenderPass(
-                        command_buffer_.beginRenderPass
-
-                    command_buffer->EndRenderPass();
-                        frame->EndFrame
-                            command_buffer_->Submit
-
-                image_pipe_->PresentImage
-                    ====>
-                    在scenic进程：
-                    image_pipe_->PresentImage
+           PresentScene(last_presentation_time_);
+               session()->Present
+               ====> scenic
+               触发scenic端的命令执行
