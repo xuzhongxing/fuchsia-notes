@@ -14,6 +14,7 @@ main
                             把createview cmd放入buffer
 
     root_presenter->PresentView(std::move(view_holder_token), nullptr);
+        ===>
         转入root presenter进程
 
     view->LaunchShadertoyClient();

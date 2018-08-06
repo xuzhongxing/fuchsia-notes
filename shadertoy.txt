@@ -81,5 +81,6 @@ ShadertoyState::SetShaderCode
                             command_buffer_->Submit
 
                 image_pipe_->PresentImage
+                    ====>
                     在scenic进程：
                     image_pipe_->PresentImage

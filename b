@@ -1,1 +1,0 @@
-xelatex fuchsia-notes.tex

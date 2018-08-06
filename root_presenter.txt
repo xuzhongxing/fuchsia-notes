@@ -10,30 +10,115 @@ App::PresentView
 
         DisplayCompositor::DisplayCompositor(Session* session) : Resource(session)
             session->Enqueue(NewCreateDisplayCompositorCmd(id()));
+                SessionHandler::DispatchCommand
+                    buffered_commands_.emplace_back
+                    只是放入队列
 
         compositor_->SetLayerStack(*layer_stack_.get());
+            session()->Enqueue(NewSetLayerStackCmd(id(), layer_stack_id));
+
         session_->Present(0, [](fuchsia::images::PresentationInfo info) {});
             Flush();
                 session_->Enqueue(std::move(commands_));
-                scenic端的session:
+                ====> scenic
                 Session::Enqueue
                     SessionHandler::DispatchCommand
                         buffered_commands_.emplace_back(std::move(command.gfx()));
 
-            session_->Present(presentation_time, std::move(acquire_fences_),
-                    std::move(release_fences_), std::move(callback));
-
-                scenic端的session:
-                delegate->Present(presentation_time, std::move(acquire_fences), std::move(release_fences), std::move(callback));
-                    session_->ScheduleUpdate(presentation_time, std::move(buffered_commands_), std::move(acquire_fences), std::move(release_fences), std::move(callback))
-                        engine()->frame_scheduler()->ComputeTargetPresentationAndWakeupTimes(requested_presentation_time);
+            session_->Present(presentation_time, std::move(acquire_fences_),std::move(release_fences_), std::move(callback));
+                ====> scenic
+                SessionHandler::Present(presentation_time, std::move(acquire_fences), std::move(release_fences), std::move(callback));
+                    Session::ScheduleUpdate(presentation_time, std::move(buffered_commands_), std::move(acquire_fences), std::move(release_fences), std::move(callback))
+                        FrameScheduler::ComputeTargetPresentationAndWakeupTimes(requested_presentation_time);
+                            PredictRequiredFrameRenderTime()
 
                         engine()->display_manager()->default_display()->GetVsyncInterval();
+                        
+                        SessionManager::ScheduleUpdateForSession
+                            updatable_sessions_.insert
+
+                            Engine::ScheduleUpdate
+                                FrameScheduler::RequestFrame
+                                    ScheduleFrame();
+                                    ====>
+                                        FrameScheduler::MaybeRenderFrame(presentation_time, wakeup_time);
+                                            Engine::RenderFrame
+                                                SessionManager::ApplyScheduledSessionUpdates
+                                                    Session::ApplyScheduledUpdates
+                                                        ApplyUpdate(std::move(scheduled_updates_.front().commands))
+                                                            ApplyCommand(std::move(command))
+                                                                ApplyCreateResourceCmd
+                                                                    ApplyCreateDisplayCompositor
+                                                                        CreateDisplayCompositor
+                                                                            Engine::CreateDisplaySwapchain
+                                                                                DisplaySwapchain::DisplaySwapchain
+                                                                                    InitializeFramebuffers(escher->resource_recycler())
+                                                                                        这里创建vkimage
+                                                                                        display_manager_->SetImageConfig(width_in_px, height_in_px, ZX_PIXEL_FORMAT_ARGB_8888);
+                                                                                        DisplayManager::SetImageConfig(int32_t width, int32_t height, zx_pixel_format_t format)
+                                                                                        vulkan_proc_addresses_.getMemoryFuchsiaHandleKHR
+                                                                                        display_manager_->ImportImage(buffer.vmo);
+                                                                                            把image内存导入display manager, 得到framebuffer id
+                                                                                        swapchain_buffers_.push_back
+                                                                                        display_manager_->EnableVsync
+
+                                                                            DisplayCompositor::DisplayCompositor
+                                                                                add to engine
+
+                                                            Session::CreateLayerStack
+                                                            添加到resources_里面
+                                                            ApplySetLayerStackCmd
+                                                                compositor->SetLayerStack
+
+                                                UpdateAndDeliverMetrics(presentation_time);
+                                                    compositor->CollectScenes(&scenes);
+                                                        layer->CollectScenes(scenes_out);
+                                                            目前没有renderer_
+====
+假设有renderer:
+for (auto scene : scenes) {
+    UpdateMetrics(scene, metrics, &updated_nodes);
+}
+compositor->DrawFrame(timings, paper_renderer_.get(), shadow_renderer_.get());
+Compositor::DrawFrame(const FrameTimingsPtr& frame_timings,
+                           escher::PaperRenderer* escher_renderer,
+                           escher::ShadowMapRenderer* shadow_renderer)
+    GetDrawableLayers();
+        有scene的
+
+
+    escher()->NewFrame("Scenic Compositor", frame_timings->frame_number());
+        frame_manager_->NewFrame
+            new Frame
+                command_buffer_ = CommandBuffer::NewForType(escher(), command_buffer_type_);
+
+
+    DrawOverlaysToModel(drawable_layers, frame, frame_timings, escher_renderer, shadow_renderer);
+        GetLayerFramebufferImage
+            escher()->image_cache()->NewImage(info);
+                image_utils::CreateVkImage(vk_device(), info);
+                创建新的vkImage
+        DrawLayer(frame, frame_timings, escher_renderer, shadow_renderer, drawable_layers[i], texture->image(), nullptr);
+            InitEscherStage(&stage, layer->GetViewingVolume(), scene->ambient_lights(), scene->directional_lights());
+
+
+    swapchain_->DrawAndPresentFrame(cb)
+cb:
+    DrawLayer
+
+
+    frame->EndFrame(frame_done_semaphore, nullptr);
+
+====
+
+                                                                
 
                         scheduled_updates_.push(
                             Update{requested_presentation_time, std::move(commands),
                                    std::move(acquire_fence_set), std::move(release_events),
-                                    std::move(callback)});
+                                   std::move(callback)});
+
+
     Presentation2::Presentation2
         session->Enqueue(NewCreateLayerCmd(id()));
         session->Enqueue(NewCreateRendererCmd(id()));

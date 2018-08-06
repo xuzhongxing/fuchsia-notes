@@ -4,8 +4,9 @@ view_manager::ViewManagerApp app;
 
     Session::Session(fuchsia::ui::scenic::Scenic* scenic)
         scenic->CreateSession(session_.NewRequest(), session_listener_binding_.NewBinding());
+            scenic创建的session接口主要是enqueue, present.
 
-
+====>
 进入scenic进程：
 Scenic::CreateSession()
     CreateSessionImmediately(std::move(session_request), std::move(listener));
