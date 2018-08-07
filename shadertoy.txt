@@ -30,6 +30,7 @@ ViewProviderService::CreateView
                 ShadertoyState::SetResolution
                     ShadertoyStateForImagePipe::OnSetResolution
                         ClearFramebuffers();
+                        创建image, 分配内存，尺寸是小的
                         Framebuffer::Framebuffer
                             info.pAttachments = image_views_.data();
                             device.createFramebuffer(info)
@@ -37,12 +38,32 @@ ViewProviderService::CreateView
                                 后面render就会画到这个image上
 
                         image_pipe_->AddImage(fb.image_pipe_id, std::move(image_info), std::move(vmo),fuchsia::images::MemoryType::VK_DEVICE_MEMORY, image->memory_offset());
-                            ====> scenic
+                            ====> scenic:
                             images_.AddResource(image_id, image)
+                            添加的是GpuImage
 
                     RequestFrame(0);
-                        DrawFrame(presentation_time, stopwatch_.GetElapsedSeconds());
+                        DrawFrame(presentation_time=0, stopwatch_.GetElapsedSeconds()=0);
+                            renderer()->DrawFrame
+                                escher()->NewFrame("Shadertoy Renderer", ++frame_number_);
+
+                                最后submit command buffer
+
                             image_pipe_->PresentImage
+                                ====> scenic:
+                                ImagePipe::PresentImage
+                                ====> async wait
+                                weak->session()->ScheduleImagePipeUpdate(presentation_time,ImagePipePtr(weak.get()));
+                                    Session::ScheduleImagePipeUpdate
+                                    scheduled_image_pipe_updates_.push({presentation_time, std::move(image_pipe)});
+
+                                    engine_->session_manager()->ScheduleUpdateForSession(engine_, presentation_time, SessionPtr(this));
+                                    SessionManager::ScheduleUpdateForSession
+                                        updatable_sessions_.insert({presentation_time, std::move(session)});
+                                        update_scheduler->ScheduleUpdate(presentation_time);
+                                            Engine::ScheduleUpdate
+                                                frame_scheduler_->RequestFrame(presentation_time);
+
                                 ====> shadertoy service async loop
                                 callback:
                                     self->OnFramePresented(std::move(info));
