@@ -1,9 +1,43 @@
-\section{vim2}
+https://forum.khadas.com/t/google-fuchsia-os-on-khadas-vim2/2587
 
-启动的时候迅速按空格进入uboot命令行，然后输入fastboot进入fastboot模式。
+apt install ckermit
+$ cat ~/.kermrc 
+set line /dev/ttyUSB0
+set speed 115200
+set carrier-watch off
+set handshake none
+set flow-control none
+robust
+set file type bin
+set file name lit
+set rec pack 1000
+set send pack 1000
+set window 5
+c
 
-If you build and flash the "vim" branch from my github, it will switch the
-update mode to fastboot by default.
+apt install gcc-5-aarch64-linux-gnu gcc-arm-none-eabi
+ln -s aarch64-linux-gnu-gcc-5 aarch64-linux-gnu-gcc
+cd u-boot
+make kvim2_defconfig
+make -j8 CROSS_COMPILE=aarch64-linux-gnu-
 
-So reset+power will go to fastboot, and also "dm reboot-bootloader" in the
-zircon shell.
+把u-boot.bin拷贝到fat32分区的优盘里
+
+启动vim2时迅速按空格进入uboot命令行
+kvim2#usb start
+kvim2#fatload usb 0 1080000 u-boot.bin
+
+kvim2#store rom_write 1080000 0 1000000
+kvim2#reset
+
+
+刷了信uboot之后可以同时按住r+p键让vim2进入fastboot模式
+
+fastboot权限设置：
+# cat /etc/udev/rules.d/51-android.rules 
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0666", GROUP="plugdev"
+
+其余见khadas-vim.md
+fx flash vim2 --pave
+
+dm reboot-recovery
