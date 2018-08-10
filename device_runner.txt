@@ -1,7 +1,3 @@
-\section{device runner}
-
-\begin{verbatim}
-
 启动的是userpicker_device_shell.
 ermine_user_shell会生成device_shell_config.json，
 userpicker_device_shell会读这个文件，启动ermine_user_shell
@@ -27,8 +23,3 @@ modular::DeviceRunnerApp app(settings, context, [&loop, &cobalt_cleanup] {
 
     device_shell_app_->services().ConnectToService(device_shell_view_provider.NewRequest());
       向device shell服务要device shell view服务。
-
-
-
-
-\end{verbatim}

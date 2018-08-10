@@ -1,0 +1,71 @@
+fx flash vim2 --pave
+
+FUCHSIA_BUILD_DIR的定义在fuchsia/.config里
+
+source "${FUCHSIA_BUILD_DIR}"/image_paths.sh
+IMAGE_BLOB_RAW=obj/build/images/blob.blk
+IMAGE_QEMU_KERNEL_RAW=../build-zircon/build-arm64/qemu-boot-shim.bin
+IMAGE_ZIRCONA_ZBI=fuchsia.zbi
+IMAGE_BOOT_RAM=fuchsia.zbi
+IMAGE_FVM_RAW=obj/build/images/fvm.blk
+IMAGE_FVM_SPARSE=obj/build/images/fvm.sparse.blk
+IMAGE_DATA_RAW=obj/build/images/data.blk
+IMAGE_DATA_FVM_RAW=obj/build/images/fvm.data.sparse.blk
+IMAGE_NETBOOT_ZBI=netboot.zbi
+IMAGE_NETBOOT_RAM=netboot.zbi
+IMAGE_ZIRCON_VBOOT=fuchsia.vboot
+IMAGE_INSTALLER_RAW=obj/build/images/installer.blk
+
+source "${FUCHSIA_BUILD_DIR}"/zedboot_image_paths.sh
+IMAGE_ZEDBOOT_ZBI=zedboot.zbi
+IMAGE_ZIRCONR_ZBI=zedboot.zbi
+IMAGE_ZEDBOOT_VBOOT=zedboot.vboot
+
+fastboot flash boot IMAGE_ZIRCONR_ZBI=zedboot.zbi
+
+
+zedboot.zbi的生成：
+[3702/23998] /usr/bin/env 
+    ../../build/gn_run_binary.sh 
+    ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/zbi 
+    --output=zedboot.zbi 
+    --depfile=zedboot.zbi.d 
+    --complete=arm64 
+    ../build-zircon/build-arm64/zircon.bin 
+    obj/build/images/zedboot/zedboot.manifest 
+    --entry=config/devmgr=obj/build/images/zedboot/devmgr_config.txt 
+    --type=cmdline
+
+
+../build-zircon/tools/zbi 的生成：
+
+[3660/23998] /usr/bin/env ../../build/images/finalize_manifests.py 
+    --depfile=obj/build/images/zedboot/zedboot.manifest.d 
+    --build-id-file=obj/build/images/zedboot/zedboot.manifest.ids.txt 
+    --stripped-dir=obj/build/images/zedboot/zedboot.manifest.stripped 
+    @__build_images_zedboot_zedboot.manifest___build_toolchain_fuchsia_arm64__rule..rsp
+
+
+./prebuilt/downloads/clang/bin/clang++ 
+    -o /home/xzx/fuchsia/out/build-zircon/tools/zbi 
+    -g -O2 -Isystem/public -Isystem/private -I/home/xzx/fuchsia/out/build-zircon/gen/global/include 
+    -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare --sysroot=./prebuilt/downloads/sysroot   
+    -Lprebuilt/downloads/clang/lib -ldl -lpthread -static-libstdc++ 
+    -Wno-unused-command-line-argument \
+	/home/xzx/fuchsia/out/build-zircon/system/host/zbi/system/host/zbi/zbi.cpp.o  
+    /home/xzx/fuchsia/out/build-zircon/tools/lib/liblz4.hostlib.a  
+    /home/xzx/fuchsia/out/build-zircon/tools/lib/libcksum.hostlib.a 
+    /home/xzx/fuchsia/out/build-zircon/tools/lib/libfbl.hostlib.a 
+
+
+flash完了之后
+boot arm -- -1
+
+但是似乎fastboot reboot并不能让已经刷过的vim2开始pave, 必须要dm reboot-recovery
+
+====
+
+dm reboot-recovery 干了啥
+
+

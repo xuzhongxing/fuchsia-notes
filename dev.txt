@@ -1,5 +1,3 @@
-\section{Development}
-
 zedboot means: after booting the target, the target will through network get the real 
 OS files on to the internal storage.
 
@@ -28,7 +26,6 @@ fastboot模式是bootloader的一种模式，有多种方式可以进入。要�
 
 启动到zedboot模式之后，会自动开始pave. 之后完整的系统就安装到emmc上面了。
 
-\section{板子}
 
 first, the SoC loads the BL1 (first lever bootloader) from maskrom, 
 then depending on state described by the flowchart in the S912 datasheet, 
@@ -52,23 +49,22 @@ you can see that along with the flash offsets in the serial
 console traces output by BL2 just before u-boot starts.
 
 eg. on the kvim2 pro:
-\begin{verbatim}
+
 Load fip header from eMMC, src: 0x0000c200, des: 0x01400000, size: 0x00004000
 New fip structure!
 Load bl30 from eMMC, src: 0x00010200, des: 0x01100000, size: 0x0000d600
 Load bl31 from eMMC, src: 0x00020200, des: 0x05100000, size: 0x0002c600
 Load bl33 from eMMC, src: 0x00050200, des: 0x01000000, size: 0x00055000
-\end{verbatim}
+
 the ‘src’ values are offset in eMMC (probably bytes, because all
 values are aligned to 0x200, which is standard sector size), and
 ‘des’ are RAM addresses.
 
 文档地址：
-\verb|https://github.com/ARM-software/arm-trusted-firmware/tree/master/docs|
+https://github.com/ARM-software/arm-trusted-firmware/tree/master/docs
 
 通过adb shell或者u-boot的命令行可以看到emmc的分区。
 
-\begin{verbatim}
 dmesg | grep mmcblk0p
 
 [ 2.849364@2] [mmcblk0p01] bootloader offset 0x000000000000, size 0x000000400000

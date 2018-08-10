@@ -1,8 +1,4 @@
-\section{appmgr}
-
 appmgr的启动
-
-\begin{verbatim}
 
 static const char* argv_appmgr[] = { "/system/bin/appmgr" };
 appmgr_hnds[0] = appmgr_req_srv;
@@ -253,6 +249,7 @@ RootLoader::LoadComponent(fidl::StringPtr url,
 
         builder.AddServices(std::move(svc));
             PushDirectoryFromChannel("/svc", std::move(services));
+                这里设置了sysmgr的"/svc"指向appmgr的服务
         flat namespace没有
         channels = Util::BindDirectory(&launch_info);
           launch_info->directory_request = std::move(exported_dir_server);
@@ -347,5 +344,3 @@ static const async_ops_t async_loop_ops = {
         .set_guest_bell_trap = async_loop_set_guest_bell_trap,
     },
 };
-
-\end{verbatim}
