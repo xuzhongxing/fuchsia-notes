@@ -23,6 +23,10 @@ IMAGE_ZEDBOOT_VBOOT=zedboot.vboot
 
 fastboot flash boot IMAGE_ZIRCONR_ZBI=zedboot.zbi
 
+zedboot里包含的是
+build/images/zedboot/BUILD.gn
+里zedboot_binary_patterns以及它们的依赖so
+
 
 zedboot.zbi的生成：
 [3702/23998] /usr/bin/env 
@@ -38,6 +42,26 @@ zedboot.zbi的生成：
     --type=cmdline
 
 
+====
+kernel/arch/arm64/image.S
+
+
+./prebuilt/downloads/gcc/bin/aarch64-elf-ld -nostdlib --build-id -z noexecstack -z max-page-size=4096 --gc-sections  --emit-relocs -T kernel/kernel.ld /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel-vars.ld /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/platform/generic-arm/generic-arm.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/arch/arm64/arm64.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/top/top.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/hdcp/amlogic_s912/amlogic_s912.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/interrupt/arm_gic/common/common.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/interrupt/arm_gic/v2/v2.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/interrupt/arm_gic/v3/v3.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/iommu/dummy/dummy.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/pcie/pcie.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/pdev/pdev.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/pdev/power/power.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/power/hisi/hisi.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/psci/psci.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/timer/arm_generic/arm_generic.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/uart/amlogic_s905/amlogic_s905.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/uart/nxp-imx/nxp-imx.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/uart/pl011/pl011.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/kernel/kernel.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/bitmap/bitmap.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/cbuf/cbuf.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/crashlog/crashlog.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/debugcommands/debugcommands.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/debuglog/debuglog.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/ktrace/ktrace.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/memory_limit/memory_limit.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/mtrace/mtrace.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/userboot/userboot.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/version/version.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/zbi/zbi.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/object/object.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/platform/platform.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/syscalls/syscalls.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/target/target.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/tests/tests.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/interrupt/interrupt.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/pdev/interrupt/interrupt.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/pdev/uart/uart.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/udisplay/udisplay.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/console/console.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/counters/counters.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/crypto/crypto.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/debug/debug.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/explicit-memory/explicit-memory.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/fbl/fbl.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/fixed_point/fixed_point.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/header_tests/header_tests.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/heap/heap.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/hypervisor/hypervisor.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/libc/libc.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/oom/oom.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/pci/pci.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/pow2_range_allocator/pow2_range_allocator.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/pretty/pretty.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/region-alloc/region-alloc.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/unittest/unittest.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/user_copy/user_copy.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/vdso/vdso.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/zircon-internal/zircon-internal.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/zxcpp/zxcpp.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/vm/vm.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/arch/arm64/hypervisor/hypervisor.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/dev/hw_rng/hw_rng.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/gfx/gfx.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/gfxconsole/gfxconsole.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/heap/cmpctmalloc/cmpctmalloc.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/kernel/lib/io/io.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/third_party/lib/cryptolib/cryptolib.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/third_party/lib/jitterentropy/jitterentropy.mod.o /home/xzx/fuchsia/out/build-zircon/build-arm64/third_party/lib/uboringssl/uboringssl.mod.o -o /home/xzx/fuchsia/out/build-zircon/build-arm64/zircon.elf
+
+
+aarch64-elf-ld -nostdlib --build-id -z noexecstack -z max-page-size=4096 --gc-sections --build-id=none \
+	       -o kernel-image.elf -T kernel/image.ld --just-symbols zircon.elf \
+	       kernel-vars.ld kernel.image.o
+
+aarch64-elf-objcopy -O binary kernel-image.elf kernel.zbi
+
+ln -f kernel.zbi zircon.bin
+
+====
+
+
+
+
 ../build-zircon/tools/zbi 的生成：
 
 [3660/23998] /usr/bin/env ../../build/images/finalize_manifests.py 
@@ -45,7 +69,10 @@ zedboot.zbi的生成：
     --build-id-file=obj/build/images/zedboot/zedboot.manifest.ids.txt 
     --stripped-dir=obj/build/images/zedboot/zedboot.manifest.stripped 
     @__build_images_zedboot_zedboot.manifest___build_toolchain_fuchsia_arm64__rule..rsp
-
+----
+res文件的内容：
+["--cwd=/home/xzx/fuchsia/buildtools/linux-x64/clang/lib", "--manifest=/home/xzx/fuchsia/buildtools/linux-x64/clang/lib/aarch64-fuchsia.manifest", "--cwd=/home/xzx/fuchsia/out/build-zircon/build-arm64-asan/..", "--manifest=/home/xzx/fuchsia/out/build-zircon/build-arm64-asan/bootfs.manifest", "--cwd=/home/xzx/fuchsia/out/build-zircon/build-arm64/..", "--manifest=/home/xzx/fuchsia/out/build-zircon/build-arm64/bootfs.manifest", "--output=obj/build/images/zedboot/zedboot.manifest", "--groups=all", "--cwd=.", "--binary=bin/devmgr", "--binary=bin/dlog", "--binary=bin/fshost", "--binary=bin/netsvc", "--binary=bin/svchost", "--binary=bin/virtual-console", "--binary=driver/*", "--binary=bin/blobfs", "--binary=bin/install-disk-image", "--binary=bin/minfs", "--binary=bin/mount", "--binary=bin/dd", "--binary=bin/driverctl", "--binary=bin/fixfs", "--binary=bin/fsck*", "--binary=bin/gpt", "--binary=bin/killall", "--binary=bin/lsblk", "--binary=bin/lsdev", "--binary=bin/lsusb", "--binary=bin/mkfs*", "--binary=bin/netdump", "--binary=bin/ping", "--binary=bin/ps", "--binary=bin/sh", "--binary=bin/umount"]
+----
 
 ./prebuilt/downloads/clang/bin/clang++ 
     -o /home/xzx/fuchsia/out/build-zircon/tools/zbi 
@@ -63,6 +90,28 @@ flash完了之后
 boot arm -- -1
 
 但是似乎fastboot reboot并不能让已经刷过的vim2开始pave, 必须要dm reboot-recovery
+
+
+生成zedboot.zbi的gn在//build/images/zedboot/BUILD.gn
+
+====
+依赖这个文件的生成：
+generate_manifest("zedboot.manifest") {
+  visibility = [ ":*" ]
+  args = []
+  foreach(pattern, zedboot_binary_patterns) {
+    args += [ "--binary=" + pattern ]
+  }
+}
+
+
+====
+依赖的目标
+[3565/23998] /usr/bin/env ../../build/images/manifest.py 
+    --output=obj/build/images/zedboot/devmgr_config.txt 
+    --entry=netsvc.netboot=true --entry=virtcon.font=18x32
+
+
 
 ====
 
