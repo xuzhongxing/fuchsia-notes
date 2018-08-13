@@ -1,0 +1,2 @@
+topaz term 的config会被sysmgr执行
+set_root_view term

@@ -1,0 +1,9 @@
+x64的bootloader负责zedboot
+
+arm64 vim2的recovery分区有一个devmgr命令行文件。
+The devmgr reads the file /boot/config/devmgr (if it exists) at startup
+and imports name=value lines into its environment, augmenting or overriding
+the values from the kernel commandline.  
+
+bl31 api: 
+smc 2, 0, 0能够加载recovery分区

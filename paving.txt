@@ -1,0 +1,13 @@
+zedboot的意思是启动之后连接服务进行paving
+
+fx boot 启动 boot server
+
+IMAGE_BOOT_RAM=fuchsia.zbi
+
+[23936/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin ../build-zircon/tools/zbi 
+    --output=fuchsia.zbi 
+    --depfile=fuchsia.zbi.d 
+    --complete=arm64 
+    ../build-zircon/build-arm64/zircon.bin obj/build/images/boot.manifest 
+    --entry=config/devmgr=obj/build/images/devmgr_config.txt 
+    --type=cmdline

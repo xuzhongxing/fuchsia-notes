@@ -31,7 +31,7 @@ kvim2#store rom_write 1080000 0 1000000
 kvim2#reset
 
 
-刷了信uboot之后可以同时按住r+p键让vim2进入fastboot模式
+刷了新uboot之后可以同时按住r+p键让vim2进入fastboot模式
 
 fastboot权限设置：
 # cat /etc/udev/rules.d/51-android.rules 
@@ -41,3 +41,78 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0666", GROUP="plugdev"
 fx flash vim2 --pave
 
 dm reboot-recovery
+这个会让PSCI64_SYSTEM_RESET 发送{ 2, 0, 0 }参数，应该是选择recovery分区启动
+在bl31 api.h文件里有例子
+
+switch_bootmode="\
+            "get_rebootmode;"\
+
+bl31设置了reboot mode,
+uboot get_rebootmode会去读这个设置
+    reboot_mode_val = ((readl(AO_SEC_SD_CFG15) >> 12) & 0xf);
+
+然后进入flash mode
+    run recovery_from_flash;
+
+
+正常启动时，执行的是：
+"storeboot="\
+            "kbi resetflag 1;sleep 1;" \
+            "zircon_bootconfig tee boot misc recovery; if imgread kernel; then bootm ${loadaddr}; fi;"\
+            "run update;"\
+
+
+u-boot的启动配置：
+
+#define CONFIG_PREBOOT  \
+            "run bcb_cmd; "\
+            "run factory_reset_poweroff_protect;"\
+            "run upgrade_check;"\
+            "run init_display;"\
+            "run storeargs;"\
+            "run combine_key;" \
+            "run upgrade_key;" \
+            "run recovery_key;" \
+            "run vim2_check;" \
+            "run wol_init;"\
+            "forceupdate;" \
+            "run switch_bootmode;"
+#define CONFIG_BOOTCOMMAND "run storeboot"
+
+
+GPIOAO_8
+
+====
+
+do_image_read
+    do_image_read_kernel
+        store_read_ops
+
+
+do_bootm
+    do_bootm_states
+
+        bootm_find_os
+            
+            boot_get_kernel  这个函数找到header
+                img_addr = genimg_get_kernel_addr_fit(argc < 1 ? NULL : argv[0],
+                            &fit_uname_config,
+                            &fit_uname_kernel);
+
+                img_addr = genimg_get_image(img_addr);
+                
+                Booting Zircon Image at 0x01080000 ...  
+                    zircon boot image被加载到这里16.5MB
+
+        bootm_load_os(images, &load_end, 0);
+
+        boot_selected_os
+            do_bootm_zircon
+                zircon_preboot
+                    在zircon boot image后面增加一些配置数据
+                然后把内核搬到boot items的后面，然后启动内核，原始的zbi起始地址会放在x0中。
+
+                然后就进入//zircon/kernel/arch/arm64/start.S里的_start
+
+
+====
