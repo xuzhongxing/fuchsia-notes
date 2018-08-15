@@ -1,0 +1,15 @@
+mozart几个组件的作用
+
+presenter创建compositor, layer stack等相关的东西。
+然后把application的child view和 root view 通过view token连接起来。
+每次app调用PresentView，会创建它的一个layer，root node等一系列东西。
+一个compositor里面有多个layer, render的时候放到一起。
+root presenter还提供input
+
+view manager的用处还不清楚，里面有输入法的接口
+
+
+scenic则是只负责render
+
+
+application要通过root presenter把自己加到root view里去

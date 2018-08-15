@@ -1,13 +1,194 @@
+在x64上，制作zedboot启动盘：
+fx mkzedboot
+目前mkzedboot只支持x64
+exec 3>>/dev/sde    将fd 3重定向到/dev/sde
+cgpt create /dev/sde
+Save(drive, drive->gpt.primary_header,
+                          GPT_PMBR_SECTORS,
+                          drive->gpt.sector_bytes, GPT_HEADER_SECTORS)
+
+cgpt boot -p /dev/sde
+dd if=zedboot.esp.blk of=/dev/sde seek=  efi system 分区
+dd if=zedboot.vboot  第2个分区  这个是启动chromebook用的
+
+
+kernel-image.elf:
+ld -nostdlib --build-id -z noexecstack -z max-page-size=4096 --gc-sections --build-id=none \
+	       -o kernel-image.elf -T kernel/image.ld --just-symbols zircon.elf \
+	       kernel-vars.ld kernel.image.o
+
+--just-symbols的作用：
+start.S:
+// These symbols are used by image.S
+.global IMAGE_ELF_ENTRY
+.global IMAGE_MULTIBOOT_ENTRY
+IMAGE_ELF_ENTRY = _start
+IMAGE_MULTIBOOT_ENTRY = _multiboot_start
+
+
+kernel.zbi:
+x86_64-elf-objcopy -O binary kernel-image.elf kernel.zbi
+zircon.bin: == kernel.zbi   这个文件是zbi文件
+包含的纯代码，就是elf加载之后的内存映像
+链接脚本指定的链接时用的地址就是每个segment加载到内存中的地址。
+
+
+zedboot.zbi:
+[6820/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin ../build-zircon/tools/zbi 
+    --output=zedboot.zbi 
+    --depfile=zedboot.zbi.d 
+    --complete=x64 
+    ../build-zircon/build-x64/zircon.bin 
+    obj/build/images/zedboot/zedboot.manifest 
+    --entry=config/devmgr=obj/build/images/zedboot/devmgr_config.txt 
+    --type=cmdline
+
+zbi命令生成了包含几个部分的文件：kernel, boot fs, cmdline, kernel和bootfs都有自己的header
+
+uefi spec:3.5， 13.3， 4
+uefi分区的文件系统是fat32, bootloader的名字是/EFI/BOOT/BOOTx64.EFI, 格式是PE32+
+
+bootx64.so:  elf x86 64 so文件
+./prebuilt/downloads/gcc/bin/x86_64-elf-ld 
+    -o /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.so 
+    -nostdlib -T bootloader/build/efi-x86-64.lds -pie -Lout 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/osboot.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/diskio.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/cmdline.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/zircon.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/misc.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/netboot.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/netifc.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/inet6.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/pci.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/framebuffer.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/src/device_id.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/efi/guids.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/xefi.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/loadfile.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/console-printf.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/ctype.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/printf.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/stdlib.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/string.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/strings.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/lib/inet.o 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/EFI_libs/libtftp.a
+
+bootx64.efi:  pe32+ efi application
+./prebuilt/downloads/gcc/bin/x86_64-elf-objcopy 
+    --target=pei-x86-64 --subsystem 10 -j .text -j .data -j .reloc 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.so 
+    /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.efi
+
+make-efi会把zedboot.bin写到esp里。所以bootx64.efi会在esp里寻找需要加载的内核。
+
+zedboot.esp.blk:
+[8357/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/make-efi 
+    --output /home/xzx/fuchsia/out/x64/zedboot.esp.blk 
+    --mkfs /home/xzx/fuchsia/out/build-zircon/tools/mkfs-msdosfs 
+    --zedboot /home/xzx/fuchsia/out/x64/zedboot.zbi 
+    --cmdline /home/xzx/fuchsia/build/images/zedboot/efi_cmdline.txt 
+    --efi-bootloader /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.efi
+
+zedboot.vboot:  启动chromebook用的
+[6830/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    host_x64/futility 
+    vbutil_kernel 
+    --pack /home/xzx/fuchsia/out/x64/zedboot.vboot 
+    --keyblock /home/xzx/fuchsia/third_party/vboot_reference/tests/devkeys/kernel.keyblock 
+    --signprivate /home/xzx/fuchsia/third_party/vboot_reference/tests/devkeys/kernel_data_key.vbprivk 
+    --bootloader /home/xzx/fuchsia/out/x64/zedboot.zbi 
+    --vmlinuz /home/xzx/fuchsia/out/build-zircon/build-x64/zircon.bin 
+    --version 1 
+    --flags 0x2
+
 zedboot的意思是启动之后连接服务进行paving
 
 fx boot 启动 boot server
 
-IMAGE_BOOT_RAM=fuchsia.zbi
+ramdisk=fuchsia.zbi
 
+x64:
+--efi fuchsia.esp.blk
+--kernc fuchsia.vboot
+
+arm64:
+--zircona fuchsia.zbi
+--zirconr zedboot.zbi
+
+
+--fvm fvm.sparse.blk
+--fvm fvm.data.sparse.blk
+
+fuchsia.zbi:
 [23936/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin ../build-zircon/tools/zbi 
     --output=fuchsia.zbi 
     --depfile=fuchsia.zbi.d 
     --complete=arm64 
-    ../build-zircon/build-arm64/zircon.bin obj/build/images/boot.manifest 
+    ../build-zircon/build-arm64/zircon.bin 
+    obj/build/images/boot.manifest 
     --entry=config/devmgr=obj/build/images/devmgr_config.txt 
     --type=cmdline
+
+fuchsia.esp.blk
+[25127/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/make-efi 
+    --output /home/xzx/fuchsia/out/x64/fuchsia.esp.blk 
+    --mkfs /home/xzx/fuchsia/out/build-zircon/tools/mkfs-msdosfs 
+    --zircon /home/xzx/fuchsia/out/x64/fuchsia.zbi 
+    --zedboot /home/xzx/fuchsia/out/x64/zedboot.zbi 
+    --cmdline /home/xzx/fuchsia/build/images/efi_local_cmdline.txt 
+    --efi-bootloader /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.efi
+
+fuchsia.vboot:  启动chromebook用的
+[23942/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/futility 
+    vbutil_kernel 
+    --pack /home/xzx/fuchsia/out/arm64/fuchsia.vboot 
+    --keyblock /home/xzx/fuchsia/third_party/vboot_reference/tests/devkeys/kernel.keyblock 
+    --signprivate /home/xzx/fuchsia/third_party/vboot_reference/tests/devkeys/kernel_data_key.vbprivk 
+    --bootloader /home/xzx/fuchsia/out/arm64/fuchsia.zbi 
+    --vmlinuz /home/xzx/fuchsia/out/build-zircon/build-arm64/zircon.bin 
+    --version 1 
+    --flags 0x2
+
+fvm.sparse.blk:
+[23986/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/fvm 
+    obj/build/images/fvm.sparse.blk 
+    sparse 
+    --compress lz4 
+    --blob obj/build/images/blob.blk
+
+fvm.data.sparse.blk:
+[3538/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/fvm 
+    obj/build/images/fvm.data.sparse.blk 
+    sparse 
+    --compress lz4 
+    --zxcrypt 
+    --data obj/build/images/data.blk
+
+
+blob.blk:  blobfs里用到了merkle tree数据结构。具体没细看。应该是把manifest里的文件都塞进去了。
+[23960/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/blobfs 
+    --depfile  指定需要dep文件，就是目标文件名后面加.d, 所以这个命令会生成2个文件，blob.blk.d里存放的是manifest里的文件名
+    obj/build/images/blob.blk 
+    create 
+    --manifest blob.manifest
+
+data.blk:
+[6591/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/minfs 
+    obj/build/images/data.blk@10m 
+    create
+创建一个10兆的minfs
+
+
+bootserver 
+    --efi fuchsia.esp.blk
+    --kernc fuchsia.vboot
+    --fvm fvm.sparse.blk
+    --fvm fvm.data.sparse.blk
+    zircon.bin
+    fuchsia.zbi

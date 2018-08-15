@@ -1,9 +1,5 @@
-\section{sysmgr}
-
-\begin{verbatim}
-
 main.cc: main()
-================
+
 
 auto command_line = fxl::CommandLineFromArgcArgv(argc, argv);
     CommandLineFromIterators(argv, argv + argc); char **
@@ -139,4 +135,16 @@ env_launcher_->CreateComponent(std::move(launch_info), nullptr);
 appmgr:
 realm_->CreateComponent(std::move(launch_info), std::move(controller));
 
-\end{verbatim}
+
+====
+
+blob.manifest里的.config
+garnet/bin/kernel_crash_checker/kernel_crash_checker.config
+garnet/bin/netcfg/netcfg.config
+garnet/bin/netconnector/netconnector.config
+garnet/bin/sysmgr/config/network.config
+garnet/bin/sysmgr/config/services.config
+garnet/bin/thermd/thermd.config
+garnet/bin/wlancfg/wlancfg.config
+garnet/go/src/amber/startup.config
+topaz/bin/ermine/config/ermine.config

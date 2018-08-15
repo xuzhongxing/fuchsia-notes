@@ -47,7 +47,9 @@ dm reboot-recovery
 switch_bootmode="\
             "get_rebootmode;"\
 
-bl31设置了reboot mode,
+bl31设置了reboot mode, 应该会将启动参数写入地址AO_SEC_SD_CFG15。
+但是由于bl31没有源码，所以无法确认。
+
 uboot get_rebootmode会去读这个设置
     reboot_mode_val = ((readl(AO_SEC_SD_CFG15) >> 12) & 0xf);
 
