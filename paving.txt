@@ -122,7 +122,8 @@ arm64:
 --fvm fvm.data.sparse.blk
 
 fuchsia.zbi:
-[23936/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin ../build-zircon/tools/zbi 
+[23936/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
+    ../build-zircon/tools/zbi 
     --output=fuchsia.zbi 
     --depfile=fuchsia.zbi.d 
     --complete=arm64 
@@ -139,7 +140,7 @@ fuchsia.esp.blk
     --zedboot /home/xzx/fuchsia/out/x64/zedboot.zbi 
     --cmdline /home/xzx/fuchsia/build/images/efi_local_cmdline.txt 
     --efi-bootloader /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.efi
-
+====
 fuchsia.vboot:  启动chromebook用的
 [23942/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/futility 
     vbutil_kernel 
@@ -150,6 +151,7 @@ fuchsia.vboot:  启动chromebook用的
     --vmlinuz /home/xzx/fuchsia/out/build-zircon/build-arm64/zircon.bin 
     --version 1 
     --flags 0x2
+====
 
 fvm.sparse.blk:
 [23986/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
@@ -158,6 +160,25 @@ fvm.sparse.blk:
     sparse 
     --compress lz4 
     --blob obj/build/images/blob.blk
+main()
+    add_partitions(sparseContainer.get(), argc - i, argv + i)
+        container->AddPartition(partition_path, partition_type)
+            Format::Create(path, type_name, &format)
+            AllocatePartition(fbl::move(format)
+                format->MakeFvmReady(SliceSize(), part_index)
+                AllocateExtent
+
+    sparseContainer->Commit()
+        PrepareWrite(extent_size_)
+
+        WriteData(format->Data(), format->BlockSize())
+
+        CompleteWrite()
+
+fvm-sparse.h里有文件的格式
+vslice_start的单位是block, 也就是8kb
+
+====
 
 fvm.data.sparse.blk:
 [3538/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
@@ -168,14 +189,49 @@ fvm.data.sparse.blk:
     --zxcrypt 
     --data obj/build/images/data.blk
 
+====
 
-blob.blk:  blobfs里用到了merkle tree数据结构。具体没细看。应该是把manifest里的文件都塞进去了。
+blob.blk:  
 [23960/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
     ../build-zircon/tools/blobfs 
     --depfile  指定需要dep文件，就是目标文件名后面加.d, 所以这个命令会生成2个文件，blob.blk.d里存放的是manifest里的文件名
     obj/build/images/blob.blk 
     create 
     --manifest blob.manifest
+
+details:
+FsCreator::ProcessArgs()
+    fd_.reset(open(device, open_flags, 0644));
+    depfile_.reset(open(buf, O_CREAT|O_TRUNC|O_WRONLY, 0644));
+    FsCreator::ProcessManifest
+        BlobfsCreator::ProcessManifestLine
+            BlobfsCreator::ProcessBlob
+                ProcessBlocks(stats.st_size) // 累加需要的size
+                    data_blocks_ += MerkleTreeBlocks(node) + BlobDataBlocks(node);
+                blob_list_.push_back(path);
+    ResizeFile
+        BlobfsCreator::CalculateRequiredSize()
+
+FsCreator::RunCommand()
+    BlobfsCreator::Mkfs()
+        blobfs::blobfs_mkfs(fd_.get(), block_count);
+            把head, blockmap, nodemap都写入磁盘
+        Add()
+            blobfs_create(&blobfs, fbl::move(fd_)
+                readblk(fd.get(), 0, (void*)info_block.block)
+                Blobfs::Create(fbl::move(fd), 0, info_block, extent_lengths, out)
+                    分成4个extent：head, blockmap, nodemap, data blocks
+
+            thread:
+            AppendDepfile(blob_list_[i].c_str())
+            AddBlob(blobfs.get(), blob_list_[i].c_str())
+                blobfs::blobfs_add_blob(blobfs, data_fd.get())
+                    MerkleTree::Create(blob_data, s.st_size, merkle_tree.get(),
+                                            merkle_size, &digest)
+                    bs->NewBlob(digest, &inode_block)
+
+    对于每个文件，先存放它的merkletree, 然后存它的data, inode里有root hash
+    
 
 data.blk:
 [6591/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin 
