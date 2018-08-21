@@ -140,6 +140,9 @@ fuchsia.esp.blk
     --zedboot /home/xzx/fuchsia/out/x64/zedboot.zbi 
     --cmdline /home/xzx/fuchsia/build/images/efi_local_cmdline.txt 
     --efi-bootloader /home/xzx/fuchsia/out/build-zircon/build-x64/bootloader/bootx64.efi
+
+对于efi启动，bootx64.efi会从esp分区直接读取fuchsia.zbi, 里面包含了kernel以及boot fs
+
 ====
 fuchsia.vboot:  启动chromebook用的
 [23942/23998] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/futility 
@@ -246,5 +249,124 @@ bootserver
     --kernc fuchsia.vboot
     --fvm fvm.sparse.blk
     --fvm fvm.data.sparse.blk
-    zircon.bin
-    fuchsia.zbi
+    zircon.bin   (kernel)
+    fuchsia.zbi  (ramdisk)
+
+
+main
+    use_tftp = true
+
+    xfer(ramdisk, "<<netboot>> ramdisk.bin")
+    xfer "<<netboot>> kernel.bin"
+
+    xfer "<<image>> efi.img"
+
+    xfer "<<image>> sparse.fvm"  fvm.sparse.blk
+    xfer "<<image>> sparse.fvm"  fvm.data.sparse.blk
+
+tftp_xfer()
+    file_init(&xd);
+    tftp_init
+
+    tftp_push_file
+        transfer_file
+            transport_send
+                state->target_addr.sin6_port = htons(NB_TFTP_INCOMING_PORT);
+====
+
+    send_boot_command
+    
+
+
+
+
+====
+
+在device端，netsvc.advertise是true, netsvc.netboot是true
+
+main
+    netboot_advertise(nodename);
+        udp6_send: 33330 => 33331
+
+
+    for(;;)
+        netifc_open(interface)
+            open("/dev/class/ethernet", O_DIRECTORY|O_RDONLY)
+                fdio_watch_directory(dirfd, netifc_open_cb, ZX_TIME_INFINITE, (void*)interface);
+                    netifc_open_cb
+                        netfd = openat(dirfd, fn, O_RDWR)
+                        eth_create
+                        ioctl_ethernet_start
+                        ip6_init
+
+        netifc_poll
+            for (;;)
+                eth_complete_rx
+                    rx_complete
+                        netifc_recv
+                            eth_recv
+                                _udp6_recv
+                                    udp6_recv
+                                        tftp_recv
+                                            tftp_handle_msg
+                                                tftp_process_msg
+                                                    tftp_handle_wrq
+                                                        tftp_handle_request
+                                                            session->file_interface.open_write
+                                                            file_open_write
+                                                                如果是<<netboot>>文件，存在buffer里
+                                                                netboot_get_buffer
+                                                                如果是<<image>>文件，调用
+                                                                aver_open_write
+
+                                                                
+                                                    tftp_handle_data
+
+                        eth_queue_rx
+                
+
+====
+
+install-disk-image
+
+install-efi
+install-fvm
+
+
+RealMain
+    DevicePartitioner::Create();
+        EfiDevicePartitioner::Initialize(&device_partitioner)
+            GptDevicePartitioner::InitializeGpt(&gpt)
+                FindTargetGptPath
+                gpt_device_init
+
+    PartitionPave(fbl::move(device_partitioner), fbl::move(flags.payload_fd),Partition::kEfi, flags.arch);
+        partitioner->FindPartition(partition_type, &partition_fd)
+            gpt_->FindPartition(filter, out_fd);
+            找到已有的"EFI Gigaboot"分区
+            如果没找到则执行添加
+
+        partitioner->AddPartition(partition_type, &partition_fd)
+
+        WriteVmoToBlock
+
+        partitioner->FinalizePartition(partition_type)
+
+
+    FvmPave(fbl::move(device_partitioner), fbl::move(flags.payload_fd));
+        device_partitioner->FindPartition(Partition::kFuchsiaVolumeManager, &partition_fd);
+        若无，device_partitioner->AddPartition
+
+        FvmStreamPartitions(fbl::move(partition_fd), fbl::move(payload_fd))
+            fvm::SparseReader::Create(fbl::move(src_fd), &reader)
+
+            FvmPartitionFormat(fbl::move(partition_fd), hdr->slice_size)
+                TryBindToFvmDriver
+
+            对fvm image里的每个分区，实际上一个image里面目前只有一个分区
+                去fvm分区里找对应的子分区。
+                若没有，则创建
+                fvm_allocate_partition
+
+                StreamFvmPartition
+

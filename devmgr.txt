@@ -1,6 +1,17 @@
-\section{devmgr}
+devmgr_config.txt:
+正常：
+devhost.asan.strict=false
+devmgr.require-system=true
+zircon.system.pkgfs.cmd=bin/pkgsvr+ce05542b18c4bd7034ca0a7ac6cb11c35168fea4c023d8e58f2ea0a40ecd64e9
+zircon.system.pkgfs.file.bin/pkgsvr=d169a9cc0ec4148ed01dce26fc1c1031e04209f3fa4c2839e42b06903c730fbe
+zircon.system.pkgfs.file.lib/ld.so.1=43eee99e8bd1432596496ef8873bac37044acd4085044639d87e4160d6c1c534
+zircon.system.pkgfs.file.lib/libfdio.so=c509bb1487709386a83929ecd9e0f7afe854a17851236ab21aea4fa41c8f7e72
 
-\begin{verbatim}
+zedboot:
+netsvc.netboot=true
+virtcon.font=18x32
+
+
 进程和通道handle的关系
 devmgr:appmgr_req_cli <--> appmgr:appmgr_req_srv
 devmgr:svchost_outgoing <--> svchost:dir_request

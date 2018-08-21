@@ -1,8 +1,5 @@
-\section{fshost}
-
 fshost是文件系统服务进程。
 
-\begin{verbatim}
 zircon/system/core/devmgr/fshost.c: main()
 
 _fs_root = zx_get_startup_handle(PA_HND(PA_USER0, 0));
@@ -89,5 +86,31 @@ Connection::HandleMessage(zxrio_msg_t* msg)
 
 
 
+====
 
-\end{verbatim}
+devmgr_config.txt有个这个配置：
+zircon.system.pkgfs.cmd=bin/pkgsvr+1cef414eec640908458393fa66f69d96a6cf2bd9220a86ae805b8eec6c672a14会让fshost执行pkgsvr
+
+
+
+obj/build/images/blob_merkleroot.manifest:1cef414eec640908458393fa66f69d96a6cf2bd9220a86ae805b8eec6c672a14=obj/build/images/system_image.meta/meta.far
+
+
+pkgsvr在garnet/go下面
+
+====
+
+obj/build/images/system_image.meta/meta.far 
+这个文件是system文件系统清单，被包括在blob.manifest里
+它的来历：
+
+由pm生成
+
+====
+
+system_image.manifest由monolith package生成。topaz/products/default包含了所有的package
+具体见build/gn/packages.gni
+
+
+====
+pkgfs_finish里会把/pkgfs/system重新导出为/system
