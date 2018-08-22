@@ -1,0 +1,83 @@
+main
+    tiles::Tiles tiles(std::move(view_manager), view_owner.NewRequest(),startup_context.get(), border);
+        view owner是view manager里的ViewImpl. view owner的服务端传给view manager了。
+
+        root_node_.BindAsRequest(&root_export_token);
+            等着别人export一个资源
+            ====> scenic:
+            Session::ApplyImportResourceCmd
+                engine_->resource_linker()->ImportResource(import.get(), command.spec, std::move(command.token))
+                    unresolved_imports_.AddUnresolvedImport
+                resources_.AddResource
+        
+        view_manager_->CreateView(view_.NewRequest(), std::move(view_owner_request), view_listener_binding_.NewBinding(), std::move(root_export_token), "Tile");
+            ====> view manager:
+            
+            ViewManagerImpl::CreateView
+                registry_->CreateView
+                    view_state->top_node().Export(std::move(parent_export_token));
+                        把top node导出给上面导入,变成上面的root_node_
+                
+                    SchedulePresentSession
+                        ====>
+                        session_.Present
+
+                    views_by_token_.emplace(view_state->view_token().value, view_state);
+
+        view_->GetContainer(view_container_.NewRequest());
+            ====> view manager
+            ViewImpl::GetContainer
+
+        view_container_->SetListener(view_container_listener_binding_.NewBinding());
+            ====>
+            ViewImpl::SetListener
+
+
+    tiles.AddTilesByURL(command_line.positional_args());  // 这里要操作2个方面：一个是scenic方面的node的关系，另一个是view manager方面的view的树关系
+        AddTileFromURL
+            view_provider->CreateView(child_view_owner.NewRequest(), nullptr);
+            AddChildView(child_key, std::move(child_view_owner), url, std::move(controller), allow_focus);
+                view_data->host_node.ExportAsRequest
+                    这里把host_node导出，后面viewstub会导入
+                container_node_.AddChild(view_data->host_node);
+                    把host node放入container
+
+                view_container_->AddChild(child_key, std::move(child_view_owner), std::move(host_import_token));
+                    ====> view manager
+                    ViewImpl::AddChild
+                        registry_->AddChild
+                            ViewStub::ViewStub      view之间的树关系是由ViewStub和ViewContainerState来维护的
+                                ====>
+                                OnViewResolved(std::move(view_token), true);
+                                    registry_->OnViewResolved
+                                        AttachResolvedViewAndNotify
+                                            view_stub->ImportHostNode(&session_);
+                                            view_stub->host_node()->AddChild(view_state->top_node());
+                            container_state->LinkChild
+
+    presenter->Present(std::move(view_owner), nullptr);
+        ====>
+        App::Present
+            Presentation1::Presentation1
+            Presentation1::Present
+                ====> self:
+                Presentation1::CreateViewTree
+                    view_manager_->CreateViewTree(tree_.NewRequest(), std::move(tree_listener), "Presentation");
+                        ====> viewmanager:
+                        registry_->CreateViewTree(std::move(view_tree_request), view_tree_listener.Bind(), label);
+                            ViewTreeState::ViewTreeState
+
+
+                    a11y_input_connection_->RegisterPresentation(std::move(token));
+                        把viewtree的token给ally
+
+                    view_manager_->CreateView(root_view_.NewRequest(), std::move(root_view_owner_request),std::move(root_view_listener), std::move(root_view_parent_export_token_),"RootView");
+
+                    tree_container_->AddChild(kRootViewKey, std::move(root_view_owner), std::move(root_view_host_import_token_));
+                        把root view加到view tree里，把这个presentation的root view host node导入给root view
+                        view tree并不对应resource node, 所以view manager里的树关系不对应scenic里的node关系
+
+                    root_container_->AddChild(kContentViewKey, std::move(view_owner), std::move(content_view_host_import_token_));
+                        把要present的客户端view owner加入root view
+                        把要present的客户端node加入content view node.
+

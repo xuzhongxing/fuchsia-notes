@@ -1,5 +1,3 @@
-\section{userpickerdevshell}
-
 在生成的fuchsia映像里，dart程序都是以snapshot的形式存在于data目录下：
 isolate_snapshot_data.bin
 isolate_snapshot_instructions.bin
@@ -9,8 +7,7 @@ vm_snapshot_data.bin
 vm_snapshot_instructions.bin
 
 
-\subsection{userpicker device shell的构建}
-\begin{verbatim}
+userpicker device shell的构建
 [10653/22566] /usr/bin/env ../../build/gn/write_package_json.py 
   --name userpicker_device_shell 
   --version 0 
@@ -149,10 +146,8 @@ pm是fuchsia package manager.
 ../../build/images/manifest.py --contents --output obj/build/images/update_packages.manifest 
 ../../build/images/manifest.py --absolute --output=obj/build/images/amber_index 
 
-\end{verbatim}
 
-\subsection{load}
-\begin{verbatim}
+load
 对userpicker_device_shell的加载应该是走directory
 
 RootLoader::LoadComponent
@@ -210,10 +205,3 @@ CreateComponentFromPackage(
                            std::move(ns), std::move(controller));
     启动inner_package
     转入flutter_aot_runner
-
-\subsection{实现}
-
-
-
-
-\end{verbatim}

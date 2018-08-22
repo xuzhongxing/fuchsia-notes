@@ -1,5 +1,3 @@
-\section{Vulkan}
-\begin{verbatim}
 The LunarG SDK includes the official Khronos loader (libvulkan.so), which was
 developed by LunarG.
 
@@ -67,5 +65,3 @@ trampoline.c: vkCreateInstance()
 一个physical device会有多个display, 以及多个plane.
 一个plane可能对应一个display，也可能对应多个display.
 
-
-\end{verbatim}

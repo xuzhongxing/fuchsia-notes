@@ -1,3 +1,6 @@
+viewstate是数据类，viewimpl是行为类
+
+
 view_manager::ViewManagerApp app;
   new ViewRegistry(startup_context_.get())
     startup_context_->ConnectToEnvironmentService<fuchsia::ui::scenic::Scenic>()
@@ -42,3 +45,11 @@ Session::Present
                     update_scheduler->ScheduleUpdate(presentation_time);
                         RenderFrame(FrameTimingsPtr(), presentation_time, 0, false);
                             Compositor::DrawFrame
+
+
+以上作废
+====
+
+
+
+

@@ -1,3 +1,5 @@
+在fidl文件里有不少说明。
+
 mozart几个组件的作用
 
 presenter创建compositor, layer stack等相关的东西。
@@ -6,7 +8,7 @@ presenter创建compositor, layer stack等相关的东西。
 一个compositor里面有多个layer, render的时候放到一起。
 root presenter还提供input
 
-view manager的用处还不清楚，里面有输入法的接口
+view manager管理视图的树状关系，发送事件，例如向视图发送OnChildAttached()
 
 
 scenic则是只负责render
