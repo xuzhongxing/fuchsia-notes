@@ -33,16 +33,23 @@ App::PresentView
                             PredictRequiredFrameRenderTime()
 
                         engine()->display_manager()->default_display()->GetVsyncInterval();
-                        
+                        ====> async
+                        等齐所有的acquire fence之后，调用:
                         SessionManager::ScheduleUpdateForSession
                             updatable_sessions_.insert
 
                             Engine::ScheduleUpdate
                                 FrameScheduler::RequestFrame
+                                    如果安排了更早的一帧会把这帧丢掉？
                                     ScheduleFrame();
-                                    ====>
+                                        计算出target和wakeup time.
+                                        ====> async
+                                        在wakeup time启动
                                         FrameScheduler::MaybeRenderFrame(presentation_time, wakeup_time);
+                                            把队列里时间早于这一帧的（包括自己）都弹出去
+                                            delegate_是Engine
                                             Engine::RenderFrame
+                                                把所有的资源操作都做完
                                                 SessionManager::ApplyScheduledSessionUpdates
                                                     Session::ApplyScheduledUpdates
                                                         ApplyUpdate(std::move(scheduled_updates_.front().commands))
@@ -73,9 +80,8 @@ App::PresentView
                                                 UpdateAndDeliverMetrics(presentation_time);
                                                     compositor->CollectScenes(&scenes);
                                                         layer->CollectScenes(scenes_out);
-                                                            目前没有renderer_
-                                                ========
-                                                    假设有renderer:
+                                                            最多有一个scene
+                                                    更新scale
                                                     for (auto scene : scenes) {
                                                         UpdateMetrics(scene, metrics, &updated_nodes);
                                                     }
@@ -95,7 +101,7 @@ App::PresentView
 
 
                                                     DrawOverlaysToModel(drawable_layers, frame, frame_timings, escher_renderer, shadow_renderer);
-                                                    for all drawable layers
+                                                    for all drawable layers, 除了第0个layer
                                                         GetLayerFramebufferImage
                                                             escher()->image_cache()->NewImage(info);
                                                                 image_utils::CreateVkImage(vk_device(), info);
@@ -156,3 +162,34 @@ App::PresentView
             session_->Present(0, [](fuchsia::images::PresentationInfo info) {});
 
 root presenter没有自己进入循环
+
+
+====
+
+input:
+
+input设备是由input_reader发送给inputdeviceregistry这个接口的实现者获得的
+
+AddPresentation
+    Presentation1::OnDeviceAdded
+        state_ptr->OnRegistered();
+
+
+KeyboardState::SendEvent
+    device_state_->callback()(std::move(ev));
+
+
+        Presentation1::OnAccessibilityEvent
+            若没注册，注册view tree:
+            a11y_input_connection_->RegisterPresentation(std::move(clone_token));
+            对touch事件，发送给ally
+            a11y_input_connection_->SendInputEvent(std::move(event));
+                ====> ally touch dispatcher:
+                A11yTouchDispatcherImpl::SendInputEvent
+                    若注册了view tree token 发送事件给touch dispatcher的订阅者，目前没有
+
+            Presentation1::OnEvent
+                event.is_keyboard()
+
+                input_dispatcher_->DispatchEvent(std::move(event));
+                    view tree是inputdispatcher服务的提供者

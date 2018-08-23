@@ -1,2 +1,40 @@
-topaz term 的config会被sysmgr执行
-set_root_view term
+baseview里有个parent node, 是个import node, bind到view manager里view state里的top node上。
+这个top node就是tiles里child view对应的node. 
+
+Tiles::AddChildView时会把上面的child view对应的node添加到view data的host node里。
+
+view stub的host node是个import node. 会bind到host import token对应的node上，就是view data的host node.
+
+
+cmd line: tiles term
+
+ViewController::ViewController
+    SkiaFontLoader::LoadFont
+        callback
+            ComputeMetrics
+
+            StartCommandIfNeeded
+                pty_.Run
+                    启动另一个进程sh, 设置好回调函数，处理从sh来的输入
+
+                Blink();
+                    反转blink_on, 加入下一次Blink()
+
+                BaseView::InvalidateScene
+                    BaseView::PresentScene
+                        session()->Present
+
+
+
+                        
+                            ====>
+                            callback
+                                ViewController::OnSceneInvalidated
+                                    AcquireCanvas();
+
+                                    DrawContent(canvas);
+                                
+
+                                    ReleaseAndSwapCanvas();
+                                        content_material_.SetTexture(*image);
+                                        HostCanvasCycler::ReleaseAndSwapCanvas
