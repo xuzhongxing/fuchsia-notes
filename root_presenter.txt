@@ -85,11 +85,10 @@ App::PresentView
                                                     for (auto scene : scenes) {
                                                         UpdateMetrics(scene, metrics, &updated_nodes);
                                                     }
-                                                for each compositor:  一个compositor负责一个Display
+
+                                                //for each compositor:  一个compositor负责一个Display
                                                 compositor->DrawFrame(timings, paper_renderer_.get(), shadow_renderer_.get());
-                                                Compositor::DrawFrame(const FrameTimingsPtr& frame_timings,
-                                                                        escher::PaperRenderer* escher_renderer,
-                                                                        escher::ShadowMapRenderer* shadow_renderer)
+                                                Compositor::DrawFrame(const FrameTimingsPtr& frame_timings, escher::PaperRenderer* escher_renderer, escher::ShadowMapRenderer* shadow_renderer)
                                                     GetDrawableLayers();
                                                         有scene的
 
@@ -101,23 +100,32 @@ App::PresentView
 
 
                                                     DrawOverlaysToModel(drawable_layers, frame, frame_timings, escher_renderer, shadow_renderer);
-                                                    for all drawable layers, 除了第0个layer
-                                                        GetLayerFramebufferImage
-                                                            escher()->image_cache()->NewImage(info);
-                                                                image_utils::CreateVkImage(vk_device(), info);
-                                                                创建新的vkImage
-                                                        DrawLayer(frame, frame_timings, escher_renderer, shadow_renderer, drawable_layers[i], texture->image(), nullptr);
-                                                            InitEscherStage(&stage, layer->GetViewingVolume(), scene->ambient_lights(), scene->directional_lights());
+                                                        for all drawable layers, 除了第0个layer
+                                                            GetLayerFramebufferImage
+                                                                escher()->image_cache()->NewImage(info);
+                                                                    image_utils::CreateVkImage(vk_device(), info);
+                                                                    创建新的vkImage
 
-                                                            escher_renderer->DrawFrame(frame, stage, model, camera, output_image, shadow_map, overlay_model);
-                                                            PaperRenderer::DrawFrame
-                                                                UpdateRenderPasses(color_image_out->format(), color_image_out->format());
+                                                            DrawLayer(frame, frame_timings, escher_renderer, shadow_renderer, drawable_layers[i], texture->image(), nullptr);
+                                                                InitEscherStage(&stage, layer->GetViewingVolume(), scene->ambient_lights(), scene->directional_lights());
+                                                                    viewing volume z=[0,1000]
 
-                                                                framebuffer = fxl::MakeRefCounted<Framebuffer>
+                                                                Renderer::CreateDisplayList
+                                                                    scene->Accept(&v);
+                                                                    DisplayList是escher::Object
 
-                                                                DrawLightingPass(
-                                                                    command_buffer->BeginRenderPass
-                                                                    command_buffer->EndRenderPass();
+                                                                escher_renderer->DrawFrame(frame, stage, model, camera, output_image, shadow_map, overlay_model);
+                                                                PaperRenderer::DrawFrame
+                                                                    UpdateRenderPasses(color_image_out->format(), color_image_out->format());
+                                                                        若没创建，创建一堆renderpass
+                                                                        ModelDepthPass::ModelDepthPass
+                                                                            ModelRenderPass::ModelRenderPass
+
+                                                                    framebuffer = fxl::MakeRefCounted<Framebuffer>
+
+                                                                    DrawLightingPass(
+                                                                        command_buffer->BeginRenderPass
+                                                                        command_buffer->EndRenderPass();
 
                                                     swapchain_->DrawAndPresentFrame(cb)
                                                         draw_callback(buffer.escher_image, escher::SemaphorePtr(),frame_record->render_finished_escher_semaphore);

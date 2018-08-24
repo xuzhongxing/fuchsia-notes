@@ -3,7 +3,11 @@ main
         view owner是view manager里的ViewImpl. view owner的服务端传给view manager了。
 
         root_node_.BindAsRequest(&root_export_token);
-            等着别人export一个资源
+            ImportNode是要被import到别的node里去的。ImportNode有delegate node，用来addchild.
+            别的export的node会收容这个ImportNode.
+            NewImportResourceCmdAsRequest(id(), fuchsia::ui::gfx::ImportSpec::NODE, out_export_token)
+                创建eventpair, 一头传出来交给要export的node，一头传给Scenic服务做import
+
             ====> scenic:
             Session::ApplyImportResourceCmd
                 engine_->resource_linker()->ImportResource(import.get(), command.spec, std::move(command.token))
