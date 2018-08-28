@@ -179,7 +179,7 @@ main()
         CompleteWrite()
 
 fvm-sparse.h里有文件的格式
-vslice_start的单位是block, 也就是8kb
+blobfs里面的blocksize是8kb
 
 ====
 
@@ -327,10 +327,11 @@ main
 
 ====
 
-install-disk-image
+fuchsia有2个gpt分区，一个是efi分区，一个是fvm分区
 
-install-efi
-install-fvm
+uapp/disk-pave
+
+install-disk-image install-efi install-fvm
 
 
 RealMain
@@ -352,21 +353,137 @@ RealMain
 
         partitioner->FinalizePartition(partition_type)
 
+====
+slice_size是64兆，在system/host/fvm/main.cpp
+
+块设备的block size缺省是512 bytes
 
     FvmPave(fbl::move(device_partitioner), fbl::move(flags.payload_fd));
         device_partitioner->FindPartition(Partition::kFuchsiaVolumeManager, &partition_fd);
         若无，device_partitioner->AddPartition
+        EfiDevicePartitioner::AddPartition
+            GptDevicePartitioner::AddPartition
+                最小要8GB
+                GptDevicePartitioner::FindFirstFit
+                    寻找分区之间的满足需求的空隙
+                CreateGptPartition(name, type, start, length, guid)
+                    gpt_partition_add(gpt_, name, type, out_guid, offset, blocks, 0)
+                        partition_init(part, name, type, guid, first, last, flags);
+
+                OpenBlockPartition(guid, type, ZX_SEC(5), out_fd)
+                    OpenPartition(kBlockDevPath, cb, timeout, out_fd);
 
         FvmStreamPartitions(fbl::move(partition_fd), fbl::move(payload_fd))
             fvm::SparseReader::Create(fbl::move(src_fd), &reader)
 
             FvmPartitionFormat(fbl::move(partition_fd), hdr->slice_size)
+                detect_disk_format(partition_fd.get());
+                    检测gpt分区的前8个字节是不是fvm magic
+                若不是，先初始化fvm分区的head
+
+                fvm_init(partition_fd.get(), slice_size)
+                    把fvm_t在分区头上写2遍
+                    sb->pslice_count = (disk_size - metadata_size * 2) / slice_size;
+                    物理slice的数量是整个分区的size减去2个header除以slice size
+
+                    每个vpart中的slice的编号是由alloc table记录的，每个vpart自己不记录它拥有哪些slice
+
                 TryBindToFvmDriver
+                    ====>
+                    fvm_bind
 
             对fvm image里的每个分区，实际上一个image里面目前只有一个分区
                 去fvm分区里找对应的子分区。
-                若没有，则创建
+                检查是不是fvm的子分区，检查是不是gpt分区
+
+                分配新的vpart, 最后会删除老的vpart
+                用第一个extent的slice count创建分区，后面会拓展
+
                 fvm_allocate_partition
+                    ioctl_block_fvm_alloc_partition
+                        ====> devhost
+                        VPartitionManager::DdkIoctl
+                            FindFreeVPartEntryLocked
+                                GetVPartEntryLocked
+                                fvm分区的metadata包括2个header, vpart entry, alloc table. 是之前fvm驱动加载的时候读入内存的。
+                            创建VPartition
+                            填充vpart entry metadata
+
+                            AllocateSlicesLocked(vpart.get(), 0,request->slice_count)
+                                vslice从0开始
+                                先验证vslice没有被分配
+                                然后寻找空闲的pslice
+
+                                SliceExtent放的是连续的vslice到pslice的映射，用一个vector表示。
+                                新建的情况下会分配一个sliceextent, 存放所有的vslice
+                                设置alloc table中pslice的vpart.
+
+                                WriteFvmLocked
+                                    把metadata写回磁盘
+
+                                VPartition是一个in memory data structure
+                            AddPartition(fbl::move(vpart))
+                                从刚更新的vpart entry里获得名字
+                                添加Vpartition设备。它实现了ioctl接口
+
+                    打开新建分区对应的/dev/class/block/下面的块设备
+                    
+                for later extent:
+                    ioctl_block_fvm_extend
+            
+            fzl::MappedVmo::Create(vmo_size, "fvm-stream", &mvmo)
+                创建一个1兆的vmo
+
+
+            for each partition:
+                RegisterFastBlockIo(parts[p].new_part, mvmo->GetVmo(), &vmoid, &client);
+
+                    ioctl_block_get_fifos(fd.get(), fifo.reset_and_get_address())
+                        ====> devhost:
+                        blkdev_get_fifos
+                            blockserver_create
+                                BlockServer::Create
+                                    BlockServer::BlockServer
+                                        device_ioctl(dev_, IOCTL_BLOCK_GET_INFO, nullptr, 0, &info_, sizeof(info_), &actual)
+                                        这个block设备的父亲设备是VPartition
+                                    fzl::create_fifo
+                                        创建fifo，一头给block server, 一头传出去
+                                        初始化bs里的每个tx group
+
+                                    bp->ops->query(bp->ctx, &bs->info_, &bs->block_op_size_);
+                                    ==VPartition::BlockQuery
+
+                                thrd_create(&thread, blockserver_thread, bdev)
+
+                    zx_handle_duplicate(vmo, ZX_RIGHT_SAME_RIGHTS, dup.reset_and_get_address())
+
+                    ioctl_block_attach_vmo(fd.get(), &h, vmoid_out)
+                        blkdev_attach_vmo(blkdev, cmd, cmdlen, reply, max, out_actual);
+                            blockserver_attach_vmo(bdev->bs, h, out_buf)
+
+                            vmo是blockserver的iobuffer
+
+                    block_client::Client::Create(fbl::move(fifo), client_out)
+                        block_fifo_create_client
+
+                        client里只有一个fifo
+
+                
+                vmoid是blockio_write要用的参数
+                       
+
 
                 StreamFvmPartition
+                    把metadata(image head + partition desc + extent desc)之后的slice写入磁盘
+
+                    reader->ReadData
+                        读到vmo里
+
+                    client.Transaction(request, 1)
+                        block_fifo_txn(client_, requests, count)
+                            group是0
+                            do_write(client->fifo, &requests[0], count)
+
+                            最终放入队列：
+                            VPartition::BlockQueue
 

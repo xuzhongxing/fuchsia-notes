@@ -62,6 +62,67 @@ loader_service_create_fs(NULL, &loader_service)
       loader_service_addref(svc);
 loader_service_attach(loader_service, devmgr_loader);
 
+
+block_device_watcher(zx_job_default(), netboot);
+    在添加了block device之后，根据块设备类型bind相应的block设备驱动
+    fd = openat(dirfd, name, O_RDWR)
+        vopenat(dirfd, path, flags, ap);
+            __fdio_open_at(&io, dirfd, path, flags, mode)
+                iodir = fdio_iodir(&path, dirfd)
+
+                iodir->ops->open(iodir, clean, fdio_flags_to_zxio(flags), mode, io);
+                ==mxdir_open(fdio_t* io, const char* path,uint32_t flags, uint32_t mode,fdio_t** out)
+                    zxrio_open_handle(vn->remote, path, flags, mode, out);
+                        zxrio_getobject(h, ZXFIDL_OPEN, path, flags, mode, &info, &control_channel)
+
+                        fdio_from_handles(control_channel, &info.extra, out)
+                            io = fdio_remote_create(handle, 0);
+                                rio->io.ops = &zx_remote_ops;
+
+                
+
+            fd = fdio_bind_to_fd(io, -1, 0)
+
+
+
+    如果是netboot则只处理partition containers
+
+    如果是普通启动，则处理fvm里的分区类型
+
+    mount(fd, "/fs" PATH_BLOB, DISK_FORMAT_BLOBFS, &options, launch_blobfs);
+        "/fs"被bind到root fs上
+        fmount(device_fd, mount_point.get(), df, options, cb);
+            mounter.Mount(unique_fd(device_fd), df, *options, cb);
+                MountNativeFs("/boot/bin/blobfs", fbl::move(device), options, cb);
+                    PrepareHandles(fbl::move(device));
+                        fdio_transfer_fd(device_fd, FS_FD_BLOCKDEVICE, &handles_[1], &ids_[1]);
+                            fdio_unbind_from_fd(fd, &io)
+                                把blobfs分区解除bind
+
+                            io->ops->unwrap(io, handles, types)
+                            ==zxrio_unwrap
+                                把这个remote io里封装的handle拿出来
+
+                        把分区设备对应的远程channel handle拿到
+                    
+                    argv = "/boot/bin/blobfs mount"
+
+                    LaunchAndMount(cb, options, argv, argc);
+                        cb(argc, argv, handles_, ids_, num_handles_)
+                        ==launch_blobfs
+                            devmgr_launch(job, "blobfs:/blob",&fshost_launch_load, NULL, argc, argv, NULL, -1,hnd, ids, len, NULL, FS_FOR_FSPROC);
+                            转入blobfs.txt
+
+                        然后会等待blobfs ready
+                            root_是和mountee handle相通的
+
+
+
+    launch_blob_init();
+
+
+
+
 ======
 fs_clone("system")
 当root vfs收到ZXRIO_OPEN之后：

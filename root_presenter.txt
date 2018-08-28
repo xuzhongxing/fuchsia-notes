@@ -121,6 +121,10 @@ App::PresentView
                                                                         ModelDepthPass::ModelDepthPass
                                                                             ModelRenderPass::ModelRenderPass
 
+                                                                    PaperRenderer::DrawFrameWithNoShadows
+                                                                        把color_image_out的wait semaphore加到command buffer的wait semaphore里 ？？
+
+
                                                                     framebuffer = fxl::MakeRefCounted<Framebuffer>
 
                                                                     DrawLightingPass(

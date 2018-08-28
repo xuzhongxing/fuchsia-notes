@@ -1,8 +1,3 @@
-\section{printf}
-
-\begin{verbatim}
-
-
 summary: 从efi获得framebuffer信息。用framebuffer模式输出信息。
 
 
@@ -29,5 +24,3 @@ platform_early_display_init(void)
       register_print_callback(&cb);
 
         cb = gfxconsole_print_callback
-
-\end{verbatim}
