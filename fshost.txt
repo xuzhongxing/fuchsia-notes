@@ -152,7 +152,22 @@ Connection::HandleMessage(zxrio_msg_t* msg)
 devmgr_config.txt有个这个配置：
 zircon.system.pkgfs.cmd=bin/pkgsvr+1cef414eec640908458393fa66f69d96a6cf2bd9220a86ae805b8eec6c672a14会让fshost执行pkgsvr
 
-[25123/25205] /usr/bin/env ../../build/images/manifest.py --output=obj/build/images/devmgr_config.txt --entry=devmgr.require-system=true --contents --rewrite=\*=zircon.system.pkgfs.cmd=\{target\}+\{source\} --entry=bin/pkgsvr=obj/build/images/system_image.meta/meta.far.merkle --no-contents --reset-rewrite --rewrite=\*=zircon.system.pkgfs.file.\{target\}=\{source\} --manifest=obj/garnet/go/src/pmd/pkgsvr.meta/meta/contents --reset-rewrite --include=bin/devhost.asan --include=bin/devhost --rewrite=bin/devhost.asan=devmgr.devhost.asan=true --rewrite=bin/devhost=devhost.asan.strict=false --manifest=obj/build/images/boot.manifest
+[25123/25205] /usr/bin/env ../../build/images/manifest.py 
+    --output=obj/build/images/devmgr_config.txt 
+    --entry=devmgr.require-system=true 
+    --contents 
+    --rewrite=\*=zircon.system.pkgfs.cmd=\{target\}+\{source\} 
+    --entry=bin/pkgsvr=obj/build/images/system_image.meta/meta.far.merkle 
+    --no-contents 
+    --reset-rewrite 
+    --rewrite=\*=zircon.system.pkgfs.file.\{target\}=\{source\} 
+    --manifest=obj/garnet/go/src/pmd/pkgsvr.meta/meta/contents 
+    --reset-rewrite 
+    --include=bin/devhost.asan 
+    --include=bin/devhost 
+    --rewrite=bin/devhost.asan=devmgr.devhost.asan=true 
+    --rewrite=bin/devhost=devhost.asan.strict=false 
+    --manifest=obj/build/images/boot.manifest
 
 
 
@@ -168,13 +183,19 @@ obj/build/images/system_image.meta/meta.far
 它的来历：
 
 由pm生成
-[25121/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/pm -k ../../build/development.key -o obj/build/images/system_image.meta -m obj/build/images/system_image.manifest build -depfile
+[25121/25205] /usr/bin/env ../../build/gn_run_binary.sh ../../buildtools/linux-x64/clang/bin host_x64/pm 
+    -k ../../build/development.key 
+    -o obj/build/images/system_image.meta 
+    -m obj/build/images/system_image.manifest build 
+    -depfile
 
 
 ====
 
 system_image.manifest由monolith package生成。topaz/products/default包含了所有的package
 具体见build/gn/packages.gni
+
+system_image.manifest的具体的命令行是rsp文件，太长
 
 
 ====
