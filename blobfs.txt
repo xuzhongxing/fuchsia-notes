@@ -1,0 +1,14 @@
+注意，有2个blobfs, 一个是host目录下的，一个是uapp目录下的
+
+uapp下的：
+
+process_args
+    注：
+    在Mounter::PrepareHandles里会传递device fd对应的handle作为FS_FD_BLOCKDEVICE
+    在__libc_extensions_init会建立从handle到fd的映射
+
+    command="mount"
+    func = do_blobfs_mount
+    
+do_blobfs_mount
+
