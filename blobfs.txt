@@ -9,6 +9,12 @@ process_args
 
     command="mount"
     func = do_blobfs_mount
-    
+
+注：
+所有的block_info_t最初都是来自于sata.c: sata_device_identify
+
 do_blobfs_mount
+    block_info.flags在目前blobfs的创建中应该还没有被设置过
+
+    blobfs::blobfs_mount(loop.dispatcher(), fbl::move(fd), options, fbl::move(root), fbl::move(loop_quit))
 
