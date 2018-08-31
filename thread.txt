@@ -1,36 +1,32 @@
-\section{Process and Thread}
-
-创建bootstrap2线程时，\verb|thread_t| 是在malloc里创建的。stack也是在malloc.
+创建bootstrap2线程时，thread_t 是在malloc里创建的。stack也是在malloc.
 如果是用户进程通过系统调用创建线程，则stack是通过kernel aspece分配出来的vm object.
 user sp是通过vm object mapping得到的。
 
-放到stack frame里的入口是\verb|initial_thread_func|。这个函数会调用\verb|thread_t|的entry.
-\verb|thread_t|的entry是ThreadDispatcher::StartRoutine. StartRoutine里会调用
-\verb|user_entry_|，这个是在ThreadDispatcher::Start()里设置的。
+放到stack frame里的入口是initial_thread_func。这个函数会调用thread_t的entry.
+thread_t的entry是ThreadDispatcher::StartRoutine. StartRoutine里会调用
+user_entry_，这个是在ThreadDispatcher::Start()里设置的。
 
-thread的启动：ThreadDispatcher::Start()里设置好\verb|user_entry_|，然后触发线程调度，
-切换到线程的stack上，然后进入stack frame里指定的入口\verb|initial_thread_func|.
+thread的启动：ThreadDispatcher::Start()里设置好user_entry_，然后触发线程调度，
+切换到线程的stack上，然后进入stack frame里指定的入口initial_thread_func.
 
-thread的退出：在\verb|thread_create_etc()|里，线程入口被设置为\verb|initial_thread_func|。
-在这个函数里，如果是用户线程，则不会回来了。用户线程自己调用\verb|process_exit|退出。
-如果是kernel线程，会回到这里调用\verb|thread_exit()|。在这个函数里，线程把自己从调度队列里拿下来，然后
+thread的退出：在thread_create_etc()里，线程入口被设置为initial_thread_func。
+在这个函数里，如果是用户线程，则不会回来了。用户线程自己调用process_exit退出。
+如果是kernel线程，会回到这里调用thread_exit()。在这个函数里，线程把自己从调度队列里拿下来，然后
 触发调度函数，进入别的线程。
 
-中断：中断会保存\verb|spsr_el1|，然后切换到\verb|sp_el1|，然后进入中断向量
+中断：中断会保存spsr_el1，然后切换到sp_el1，然后进入中断向量
 
 
 在启动进程的时候，传递的第一个参数是一个channel handle.
 libc start main在拿到这个channel handle之后，读取它。channel里的message是MessagePack
-里面的data是\verb|zx_proc_args_t|。这个东西是由另一头用\verb|channel_write()|写进来的。
+里面的data是zx_proc_args_t。这个东西是由另一头用channel_write()写进来的。
 userboot里面是手工组装这个消息。如果是普通应用层应该会把这个封装掉。
 
-\verb|zx_proc_args_t|是传递进程参数的固定的消息格式。作为data写入MessagePack.
+zx_proc_args_t是传递进程参数的固定的消息格式。作为data写入MessagePack.
 
-\section{进入main()之前的操作}
+进入main()之前的操作
 
 应用程序的入口是main()，在此之前，libc会做一些设置。
-
-\begin{verbatim}
 
 launchpad_create(job_copy, name, &lp);
   launchpad_create_with_jobs(job, xjob, name, result);
@@ -91,6 +87,26 @@ __libc_start_main(void* arg, int (*main)(int, char**, char**))
     __zircon_vmar_root_self;
     __zircon_job_default;
 
+
+  __init_main_thread(main_thread_handle);
+      缺省的stack size是256k
+
+      __allocate_thread(attr._a_guardsize, attr._a_stacksize, thread_self_name, NULL);
+          _zx_vmo_create(vmo_size, 0, &vmo);
+              ----
+              sys_vmo_create
+
+          map_block(_zx_vmar_root_self(), vmo, 0, tcb_size, PAGE_SIZE, PAGE_SIZE, &tcb, &tcb_region)
+              给tcb分配地址范围并映射
+              先创建vmar, 然后把vmo相应的部分映射到vmar相应的地址区间。
+
+          copy_tls(tcb.iov_base, tcb.iov_len)
+              对x86, TLS_ABOVE_TP是不定义的，所以pthread头上是tcb
+
+          map_block(_zx_vmar_root_self(), vmo, tcb_size, stack_size, guard_size, 0, &td->safe_stack, &td->safe_stack_region)
+              分配程序使用的stack. 
+              之前在launchpad里分配的是临时stack,这里切换成真正的stack
+
   start_main(const struct start_params* p)
     __libc_extensions_init(p->nhandles, p->handles, p->handle_info,
                                p->namec, p->names);
@@ -109,5 +125,3 @@ __libc_start_main(void* arg, int (*main)(int, char**, char**))
                            
     // Pass control to the application.
     exit((*p->main)(p->argc, p->argv, __environ));  
-
-\end{verbatim}

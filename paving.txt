@@ -164,12 +164,22 @@ fvm.sparse.blk:
     --compress lz4 
     --blob obj/build/images/blob.blk
 main()
+    SparseContainer::Create
+        sparseContainer->Init
+            缺省slice size = 64MB
+
     add_partitions(sparseContainer.get(), argc - i, argv + i)
         container->AddPartition(partition_path, partition_type)
             Format::Create(path, type_name, &format)
             AllocatePartition(fbl::move(format)
                 format->MakeFvmReady(SliceSize(), part_index)
+                    把blob fs的head拷贝给fvm的head
                 AllocateExtent
+                    blocksperslice=2^13, kFVMBlockMapStart=2^16, 所以slice_start=8
+                    blockmap从第8个slice开始
+                    nodemap从第16个slice开始
+                    data从第24个slice开始
+                    这里的vslice start在pave-lib里起作用
 
     sparseContainer->Commit()
         PrepareWrite(extent_size_)
@@ -214,26 +224,72 @@ FsCreator::ProcessArgs()
                 blob_list_.push_back(path);
     ResizeFile
         BlobfsCreator::CalculateRequiredSize()
+        这里计算出来的是整个的包含blockmap和nodemap的文件大小
 
 FsCreator::RunCommand()
     BlobfsCreator::Mkfs()
         blobfs::blobfs_mkfs(fd_.get(), block_count);
+            block count是这个文件总共的block数，包括头，一个block是8k
+            inode count是缺省的32768
+            第一个block是blobfs_info_t
+            BlockMapStartBlock=1
+            NodeMapStartBlock=1 + block_count / 8k*8
+            block count设置成为data block
+
+
             把head, blockmap, nodemap都写入磁盘
         Add()
-            blobfs_create(&blobfs, fbl::move(fd_)
+            blobfs_create(&blobfs, fbl::move(fd_)   // host.cpp
                 readblk(fd.get(), 0, (void*)info_block.block)
+                    把刚写入磁盘的meta信息读出来
                 Blobfs::Create(fbl::move(fd), 0, info_block, extent_lengths, out)
                     分成4个extent：head, blockmap, nodemap, data blocks
 
+            ====>
             thread:
             AppendDepfile(blob_list_[i].c_str())
+
             AddBlob(blobfs.get(), blob_list_[i].c_str())
                 blobfs::blobfs_add_blob(blobfs, data_fd.get())
-                    MerkleTree::Create(blob_data, s.st_size, merkle_tree.get(),
-                                            merkle_size, &digest)
+                    MerkleTree::Create(blob_data, s.st_size, merkle_tree.get(), merkle_size, &digest)
+                        mt.CreateInit(data_len, tree_len)
+
+                        mt.CreateUpdate(data, data_len, tree)
+
+                        mt.CreateFinal(tree, digest)
+
+                        总结：数据每8k变成32字节，所以第0层树长度是filedatalen / 256, 每层长度都是前一层的1/256
+                        每层的digest顺序排列在tree buffer里。
+
+
+
                     bs->NewBlob(digest, &inode_block)
+                        先找到一个空闲的inode，并且检查所有的inode是否有重复的digest
+                        bno是inode在nodemap区域的block索引号
+
+                    bs->AllocateBlocks(inode->num_blocks, reinterpret_cast<size_t*>(&inode->start_block)
+                        给要写入的文件分配block(8k一个)，最少占用2个block
+                        blockmap用来标记哪些block被分配了
+
+                    bs->WriteData(inode, merkle_tree.get(), data)
+                        把merkle tree和data依次写入磁盘
+
+                    bs->WriteBitmap(inode->num_blocks, inode->start_block)
+                        写入block bitmap
+
+                    bs->WriteNode(fbl::move(inode_block))
+                        把inode所在的block写入磁盘
+
+                    bs->WriteInfo()
+
+
 
     对于每个文件，先存放它的merkletree, 然后存它的data, inode里有root hash
+
+blobfs 的结构：
+blobfshead | block bitmap | inodes | merkle1+data1, merkle2+data2, ...
+写入fvm分区之后：
+0 | slice 8 | slice 16 | slice 24
     
 
 data.blk:
@@ -475,6 +531,8 @@ slice_size是64兆，在system/host/fvm/main.cpp
 
                 StreamFvmPartition
                     把metadata(image head + partition desc + extent desc)之后的slice写入磁盘
+
+                    这里用到的extent的slice_start
 
                     reader->ReadData
                         读到vmo里
