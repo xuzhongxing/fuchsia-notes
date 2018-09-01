@@ -17,4 +17,37 @@ do_blobfs_mount
     block_info.flags在目前blobfs的创建中应该还没有被设置过
 
     blobfs::blobfs_mount(loop.dispatcher(), fbl::move(fd), options, fbl::move(root), fbl::move(loop_quit))
+        blobfs_create(&fs, fbl::move(blockfd))
+
+        获取blocks数量的时候在host和fuchsia上的方式不同
+
+        Blobfs::Create(fbl::move(blockfd), info, out)
+            ioctl_block_get_fifos
+            ==fdio_ioctl
+                zxrio_ioctl
+                    fidl_ioctl
+                        fuchsia_io_NodeIoctl
+                            Connection::NodeIoctl  细节还没看
+                            ====>
+                            blkdev_get_fifos
+
+            Blobfs::InitializeVnodes
+                VnodeInsertClosedLocked
+                把inode变成vnode, 插入closed_hash_
+
+blobfs实际上只有一个root vnode, 然后所有的其他的文件都是这个root vnode下的
+客户端通过hash来查询文件
+
+    fs->OpenRootNode(&vn)
+        vn->Open(0, nullptr)
+            fd_count++
+
+
+    fs->ServeDirectory(fbl::move(vn), fbl::move(root))
+        OpenVnode(flags, &vn)
+            (*vnode)->Open(flags, &redirect)
+        vn->Serve(this, fbl::move(channel), ZX_FS_RIGHT_ADMIN)
+                    
+
+
 

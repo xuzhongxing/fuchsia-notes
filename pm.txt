@@ -1,0 +1,9 @@
+pkgsvr.go
+
+sysPkg = hash value
+pkgfs.New(*index, *blob)
+
+
+
+====
+/system/data/static_packages这个文件就是obj/build/images/pkgsvr_index

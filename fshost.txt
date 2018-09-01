@@ -116,10 +116,59 @@ block_device_watcher(zx_job_default(), netboot);
                         然后会等待blobfs ready
                             root_是和mountee handle相通的
 
+                        ioctl_vfs_mount_fs(fd_, &root_)
+                            Vfs::Ioctl
+                                Vfs::InstallRemote(vn, fbl::move(h));
+                                    vn->AttachRemote(fbl::move(h)
+
 
 
     launch_blob_init();
+        pkgfs_launch
+            cmd = "bin/pkgsvr+1cef414eec640908458393fa66f69d96a6cf2bd9220a86ae805b8eec6c672a14"
 
+            devmgr_launch_cmdline("fshost", job, "pkgfs",
+                                    &pkgfs_launch_load, (void*)(intptr_t)fs_blob_fd, cmd,
+                                    &h1, (const uint32_t[]){ PA_HND(PA_USER0, 0) }, 1,
+                                    &proc, FS_DATA | FS_BLOB | FS_SVC);
+
+                devmgr_launch(job, name, load, ctx, argc, (const char* const*)argv, NULL, -1,
+                                handles, types, hcount, proc, flags);
+
+                    pkgfs_launch_load
+                        pkgfs_ldsvc_load_blob(ctx, "", file, &vmo);
+                            vmo是bin/pkgsvr
+                            通过env  zircon.system.pkgfs.file.bin/pkgsvr 从blobfs里加载的
+
+
+                        pkgfs_ldsvc_start(fs_blob_fd, &ldsvc);
+                            loader_service_create(NULL, &pkgfs_ldsvc_ops,
+                                               (void*)(intptr_t)fs_blob_fd,
+                                               &service);
+                                创建一个loader service
+                                这个service会借助pkgfs_ldsvc_load_object，以及devmgr_config.txt里定义的
+                                环境变量(包含了hash)来加载ld.so.1
+                                这个是pkgsvr的dynlink.c阶段要使用的load service, 它需要从blobfs里加载ld.so.1
+                                
+
+                            loader_service_connect(service, ldsvc);
+
+                        launchpad_use_loader_service(lp, ldsvc);
+                            把这个service handle发送给pkgsvr
+
+                        launchpad_load_from_vmo(lp, vmo);
+                            加载bin/pkgsvr
+
+                    launchpad_go(lp, proc, &errmsg)
+
+
+            pkgfs_finish(proc, h0);
+                fdio_open_at(pkgfs_root, "system", FS_DIR_FLAGS, h1)
+                    打开pkgfs里的system目录
+                vfs_install_fs("/system", h0)
+                    然后挂在/system下面
+
+                fuchsia_start
 
 
 
@@ -200,3 +249,26 @@ system_image.manifest的具体的命令行是rsp文件，太长
 
 ====
 pkgfs_finish里会把/pkgfs/system重新导出为/system
+
+
+/pkgfs/package目录下的内容是由obj/build/images/pkgsvr_index规定的
+
+[25114/25205] /usr/bin/env ../../build/images/manifest.py 
+    --contents 
+    --output=obj/build/images/pkgsvr_index 
+    @obj/peridot/bin/agents/clipboard/clipboard_agent.pkgsvr_index.rsp 
+    @obj/topaz/bin/ermine/config.pkgsvr_index.rsp
+    @obj/garnet/bin/debugserver/debugserver.pkgsvr_index.rsp 
+    @obj/peridot/tests/queue_persistence/queue_persistence_test_agent.pkgsvr_index.rsp 
+    @obj/peridot/tests/chain/chain_test_child_module.pkgsvr_index.rsp 
+    @obj/garnet/bin/http/http.pkgsvr_index.rsp 
+    @obj/topaz/examples/mondrian_test/mondrian_test.pkgsvr_index.rsp 
+    @obj/peridot/bin/device_runner_monitor/device_runner_monitor.pkgsvr_index.rsp 
+    @obj/garnet/drivers/bluetooth/hci/passthrough/bthci_passthrough.pkgsvr_index.rsp 
+    ...
+
+
+zircon.system.pkgfs.cmd=bin/pkgsvr+3dc81b791f8399af55fa0ce7616d99f8f1097164ac134181706e287f8a16412c
+zircon.system.pkgfs.file.bin/pkgsvr=fe8f07e0750162db30cb46e8d2de2f766334dd0a1801bbb004c33165eb7f8310
+zircon.system.pkgfs.file.lib/ld.so.1=2bf62c6046947e2dc25a90931627f9b98315d5de0f7ed52927ea2e6bd3d4eb28
+zircon.system.pkgfs.file.lib/libfdio.so=18f12ca1964442473363cdfa631550d2a48ae4d96a347946cf7acbb342cf30d8
