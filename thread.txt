@@ -125,3 +125,50 @@ __libc_start_main(void* arg, int (*main)(int, char**, char**))
                            
     // Pass control to the application.
     exit((*p->main)(p->argc, p->argv, __environ));  
+
+
+====
+note:
+llvm codegen
+X86ISelLowering.cpp: 
+LowerToTLSExecModel
+Get the Thread Pointer, which is %gs:0 (32-bit) or %fs:0 (64-bit).
+
+
+====
+llvm 知道fs:0是thread Pointer
+在fuchsia里这个的设置是：
+dynlink.c: __init_main_thread
+    tls.h: zxr_tp_set(thread_self, pthread_to_tp(td));
+        _zx_object_set_property(self, ZX_PROP_REGISTER_FS, (uintptr_t*)&tp, sizeof(uintptr_t));
+
+
+====
+percpu是内核数据结构，在内核里对应gs:0
+
+====
+wrmsr写入的时候等价于写入了gs.base寄存器
+
+====
+
+%gs.base状态的变化：
+第一次切出内核时：
+swapgs
+%gs.base: 0
+MSR: &percpu
+
+切入内核时：
+swapgs
+%gs.base: &percpu
+MSR: 0
+
+线程切换时：
+swapgs: %gs.base: 0, MSR: &percpu
+read gs: oldstruct: 0
+write gs: %gs.base: 0
+swapgs: %gs.base: &percpu, MSR: 0
+
+切出内核：
+swapgs
+%gs.base: 0
+MSR: &percpu
