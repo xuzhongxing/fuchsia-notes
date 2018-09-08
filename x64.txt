@@ -1,4 +1,5 @@
-\section{x64 boot}
+x64 boot
+========
 
 .global makes the symbol visible to ld. If you define symbol in your partial
 program, its value is made available to other partial programs that are linked
@@ -17,7 +18,7 @@ linked file.
 对于.o文件，一个symbol是符号表的一项。它的value是一个偏移量。最终到了exe文件里，这个value
 会被替换成最终的地址。
 
-\begin{verbatim}
+
 qemu x86会在内核文件的前8192字节遍历寻找MULTIBOOT MAGIC.  
 IMAGE_ELF_ENTRY 实际上没用。
 
@@ -209,9 +210,17 @@ build-x64/kernel/arch/x86/kernel/arch/x86/start16.S.o)"
 > build-x64/kernel/arch/x86/x86.mod.o
 
 
-\end{verbatim}
+=============
+Intel 64架构
+=============
 
-\section{Intel 64架构}
+tss是一个固定结构的内存段，定义在struct x86_percpu里面
+x86_initialize_percpu_tss做了几件事情：
+1. 设置了本cpu tss的状态
+2. 设置了tss中ist指针
+3. 设置了
+4. 设置了tr寄存器为对应的段选择子
+
 
 real mode => protected mode => IA-32e mode
 interrupt是硬件中断。exception是软件中断。
@@ -219,10 +228,9 @@ interrupt是硬件中断。exception是软件中断。
 idt: task, interrupt, trap
 
 
-\section{启动过程}
+启动过程
 
 
-\begin{verbatim}
 在qemu multiboot.S里
 movl		$MULTIBOOT_MAGIC, %eax
 
@@ -282,11 +290,8 @@ x86_init_percpu
   设置syscall地址。
 
 
+x64 中断处理
 
-\end{verbatim}
-
-\section{x64 中断处理}
-\begin{verbatim}
 x86_exception_handler(x86_iframe_t* frame)
   int_handler_start(&state);
     arch_set_in_int_handler(true);
@@ -300,7 +305,3 @@ x86_exception_handler(x86_iframe_t* frame)
   handle_exception_types(frame);
 
   do_preempt = int_handler_finish(&state);
-
-
-
-\end{verbatim}

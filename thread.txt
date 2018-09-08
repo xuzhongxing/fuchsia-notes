@@ -1,3 +1,6 @@
+线程有2部分数据结构，内核里和用户态。
+
+====
 创建bootstrap2线程时，thread_t 是在malloc里创建的。stack也是在malloc.
 如果是用户进程通过系统调用创建线程，则stack是通过kernel aspece分配出来的vm object.
 user sp是通过vm object mapping得到的。
@@ -172,3 +175,13 @@ swapgs: %gs.base: &percpu, MSR: 0
 swapgs
 %gs.base: 0
 MSR: &percpu
+
+
+====
+
+目前发现2个地方会调用pthread的__allocate_thread
+一个是__pthread_create
+另一个是__init_main_thread
+这2个地方一个是为主线程创建对应的tls，另一个是pthread_create,
+pthread_create会另外创建对应的内核线程
+它们都会设置%fs.base为线程指针
