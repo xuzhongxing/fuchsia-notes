@@ -185,3 +185,32 @@ MSR: &percpu
 这2个地方一个是为主线程创建对应的tls，另一个是pthread_create,
 pthread_create会另外创建对应的内核线程
 它们都会设置%fs.base为线程指针
+
+
+====
+
+当一个线程被创建时，initial_thread_func会被放到context switch frame上面  thread_create_etc
+x86_64_context_switch会用retq指令跳转到这个入口地址上
+然后通过x86_uspace_entry进入用户态
+
+用户态的stack都是launchpad分配的vmo
+
+内核栈在arch_context_switch()时通过
+x86_set_tss_sp(newthread->stack.top);
+保存在percpu default tss里
+也就是说，当一个cpu运行在用户态时，它的percpu default tss里的rsp0存放的是运行的线程的内核stack rsp
+在线程进行syscall进入内核时，它的用户态stack sp存入tss
+
+
+====
+
+有几种情况会导致内核态和用户态的切换
+
+1. 中断 excpetion.S
+
+
+2. syscall syscall.S
+
+
+
+3. 新建的线程，通过x86_uspace_entry进入用户态
