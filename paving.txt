@@ -545,3 +545,9 @@ slice_size是64兆，在system/host/fvm/main.cpp
                             最终放入队列：
                             VPartition::BlockQueue
 
+====
+
+vim2的分区信息是由uboot里硬编码给出的。
+具体的分区映射定义在zircon.c里。
+bootpart驱动会使用这个分区映射信息。
+device-partitioner.cpp会利用bootpart驱动找到对应的分区。
