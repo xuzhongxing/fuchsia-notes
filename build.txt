@@ -1,4 +1,6 @@
-\section{Fuchsia Build}
+如何增加自己的包？
+fx set x64 --products topaz/products/default --packages your/thing
+
 在toolchain定义里面的{{}}不是对变量进行取值，而是一个placeholder.
 在之后生成编译命令时展开。
 
@@ -17,7 +19,6 @@ https://chromium.googlesource.com/chromium/src/tools/gn/
 
 https://ninja-build.org/
 
-\begin{verbatim}
 /home/xzx/fuchsia/buildtools/gn gen /home/xzx/fuchsia/out/x64 
   --check '--args=target_cpu="x64" fuchsia_packages=["topaz/packages/default",]'
 
@@ -136,5 +137,3 @@ variant_used
   deps = []
   name = ""
 }
-
-\end{verbatim}
