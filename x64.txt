@@ -20,7 +20,7 @@ linked file.
 
 
 qemu x86会在内核文件的前8192字节遍历寻找MULTIBOOT MAGIC.  
-IMAGE_ELF_ENTRY 实际上没用。
+IMAGE_ELF_ENTRY 实际上没用。(存疑，当时应该理解不全面，后来理解全面了忘了改这里)
 
 IMAGE_MULTIBOOT_ENTRY = _multiboot_start
 
