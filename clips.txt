@@ -1,0 +1,63 @@
+https://www.reddit.com/r/Fuchsia/comments/aewu7a/what_can_we_understand_from_fuchsia_architectural/
+
+A subject done a lot of thinking about. So this might get a bit long.
+
+First, I believe Zircon, Fuchsia kernel, is for everything. Not just
+smartphones. Or iOT. It is for the cloud to a tiny processor. Plus everything in
+between.
+
+It is why we have Machina already. So you can run GNU/Linux on Zircon.
+
+I also believe the number #1 reason for Zircon is to be able to **iterate faster
+with hardware**. Because of Dennard scaling we have to look at architecture to get
+future efficiencies. Some think of it as Moore's law coming to and end but the
+bigger issue is Dennard scaling just not as well known.
+
+Linux is a monolithic kernel. It makes is harder to map the kernel to the
+hardware. Zircon enables you to address what is traditionally in the kernel at a
+finer granular level and therefore able to innovate and iterate with hardware
+more easily. I would expect Zircon to drive a new SoC from Google that uses more
+cores.
+
+There are a couple design decisions with Zircon over Linux that are important.
+One is I/O being async in terms of the servicing does NOT have to happen on the
+same core making the request like it is with Linux. The other is able to service
+interrupts from user space. You can do a kludge on Linux with using a VM to get
+interrupts handled from user space but that is NOT the same.
+
+What is also clear to me is that Fuchsia is a completely new stack but Google is
+also making each layer able to stand on it's own. This is such an interesting
+approach. So Flutter is the native UI for Fuchsia but yet it supports Android,
+iOS, OS X, WIndows, GNU/Linux, ChromeOS and looks like also web. So it can stand
+on its own. Probably the best part is it can be used for a new device very
+easily. It makes ZERO sense to develop your own for a new device but instead you
+would just use Flutter. Then you just need a canvas. Flutter is a completely
+solution. It includes everything.
+
+Zircon is the exact same way. What was very unusual with Linux is that it was
+just a kernel. Usually the kernel is part of an OS. IT all goes together. But
+Linux was architected so it could be used just as a kernel. Then you create your
+own userland.
+
+Zircon is the same way. It can be the kernel for all kinds of things without
+using the Fuchsia userland.
+
+Zircon should also get us far better security then Linux. As we can see Linux
+has consistently had security issues.
+
+https://www.cvedetails.com/top-50-products.php
+
+Part of the problem is Linux has well over 15 million lines of code and it ALL
+runs fully privileged. Zircon is 10s of thousands.
+
+The other aspect of Zircon is that it is designed from the ground up to support
+multiple OSs. Like how the Internet is a network of networks. Zircon supports
+multiple OSs running at the same time. It is done as a first class primitive in
+a kernel that prides itself on few syscalls.
+
+https://fuchsia.googlesource.com/zircon/+/HEAD/docs/syscalls.md
+
+Basically both VMs and containers first class primitives. Containers it is built
+in from the ground up and beyond even syscalls.
+
+Everything is a container in Zircon. You can NOT use containers in a way.
