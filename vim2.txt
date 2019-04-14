@@ -132,3 +132,5 @@ gpio命令涉及的文件有：
 cmd_gpio.c, amlogic_gpio.c,
 
 关于amlogic linux更多的信息：http://linux-meson.com/doku.php
+
+gpio脚本的处理在command.c里。
