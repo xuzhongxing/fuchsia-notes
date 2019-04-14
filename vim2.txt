@@ -1,7 +1,7 @@
 https://forum.khadas.com/t/google-fuchsia-os-on-khadas-vim2/2587
 
 apt install ckermit
-$ cat ~/.kermrc 
+$ cat ~/.kermrc
 set line /dev/ttyUSB0
 set speed 115200
 set carrier-watch off
@@ -34,7 +34,7 @@ kvim2#reset
 刷了新uboot之后可以同时按住r+p键让vim2进入fastboot模式
 
 fastboot权限设置：
-# cat /etc/udev/rules.d/51-android.rules 
+# cat /etc/udev/rules.d/51-android.rules
 SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", MODE="0666", GROUP="plugdev"
 
 其余见khadas-vim.md
@@ -95,15 +95,15 @@ do_bootm
     do_bootm_states
 
         bootm_find_os
-            
+
             boot_get_kernel  这个函数找到header
                 img_addr = genimg_get_kernel_addr_fit(argc < 1 ? NULL : argv[0],
                             &fit_uname_config,
                             &fit_uname_kernel);
 
                 img_addr = genimg_get_image(img_addr);
-                
-                Booting Zircon Image at 0x01080000 ...  
+
+                Booting Zircon Image at 0x01080000 ...
                     zircon boot image被加载到这里16.5MB
 
         bootm_load_os(images, &load_end, 0);
@@ -118,3 +118,17 @@ do_bootm
 
 
 ====
+
+GPIOAO_2 对应的是power key
+https://dl.khadas.com/Hardware/VIM2/Schematic/VIM2_V12_Sch.pdf
+
+它对应的内存地址是0xc810 0028 (in)
+这个信息在s912 datasheet page 103 Table III.22.11 GPIO Register Information II
+在u-boot里的定义在：
+u-boot/arch/arm/cpu/armv8/gxl/gpio.c
+static struct meson_bank mesongxbb_banks
+
+gpio命令涉及的文件有：
+cmd_gpio.c, amlogic_gpio.c,
+
+关于amlogic linux更多的信息：http://linux-meson.com/doku.php
