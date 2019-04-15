@@ -129,7 +129,7 @@ u-boot/arch/arm/cpu/armv8/gxl/gpio.c
 static struct meson_bank mesongxbb_banks
 
 gpio命令涉及的文件有：
-cmd_gpio.c, amlogic_gpio.c,
+cmd_gpio.c, amlogic_gpio.c, gpio-uclass.c
 
 关于amlogic linux更多的信息：http://linux-meson.com/doku.php
 
